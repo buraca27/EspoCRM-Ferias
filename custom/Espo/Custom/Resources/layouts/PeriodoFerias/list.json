@@ -1,0 +1,36 @@
+[
+    {
+        "name": "dateStartDate",
+        "width": 13,
+        "link": true
+    },
+    {
+        "name": "dateEndDate",
+        "width": 13
+    },
+    {
+        "name": "diasmarcados",
+        "width": 7,
+        "align": "right"
+    },
+    {
+        "name": "aprovacaoChefia",
+        "width": 13
+    },
+    {
+        "name": "aprovadirecao",
+        "width": 13
+    },
+    {
+        "name": "conferidoDAF",
+        "width": 9
+    },
+    {
+        "name": "assignedUser",
+        "width": 14
+    },
+    {
+        "name": "ferias",
+        "width": 16
+    }
+]

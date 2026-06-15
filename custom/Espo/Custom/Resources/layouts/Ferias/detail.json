@@ -1,0 +1,35 @@
+[
+    {
+        "name": "left",
+        "label": "Vista Geral",
+        "rows": [
+            [
+                { "name": "ano" },
+                { "name": "colaborador" }
+            ],
+            [
+                { "name": "seccao" },
+                { "name": "nomeCompleto" }
+            ],
+            [
+                { "name": "localTrabalho" },
+                { "name": "diasFeriasAno" }
+            ],
+            [
+                { "name": "diasTransitados" },
+                { "name": "dataLimiteTransitados" }
+            ],
+            [
+                { "name": "diasDisponiveis" },
+                false
+            ],
+            [
+                {
+                    "name": "timeline",
+                    "fullWidth": true,
+                    "noLabel": false
+                }
+            ]
+        ]
+    }
+]

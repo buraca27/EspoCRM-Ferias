@@ -1,0 +1,24 @@
+[
+    {
+        "name": "ano",
+        "width": 7
+    },
+    {
+        "name": "colaborador",
+        "width": 14
+    },
+    {
+        "name": "nomeCompleto",
+        "width": 22,
+        "link": true
+    },
+    {
+        "name": "seccao",
+        "width": 15
+    },
+    {
+        "name": "timeline",
+        "width": 38,
+        "notSortable": true
+    }
+]

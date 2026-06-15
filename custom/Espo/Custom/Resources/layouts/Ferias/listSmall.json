@@ -1,0 +1,63 @@
+[
+    {
+        "name": "name",
+        "link": true
+    },
+    {
+        "name": "createdBy",
+        "width": 20
+    },
+    {
+        "name": "assignedUser",
+        "width": 20
+    },
+    {
+        "name": "teams",
+        "width": 20,
+        "notSortable": true
+    },
+    {
+        "name": "diasDisponiveis",
+        "width": 20
+    },
+    {
+        "name": "createdAt",
+        "width": 20
+    },
+    {
+        "name": "colaborador",
+        "width": 20
+    },
+    {
+        "name": "nomeCompleto",
+        "width": 20
+    },
+    {
+        "name": "diasFeriasAno",
+        "width": 20
+    },
+    {
+        "name": "modifiedAt",
+        "width": 20
+    },
+    {
+        "name": "modifiedBy",
+        "width": 20
+    },
+    {
+        "name": "seccao",
+        "width": 20
+    },
+    {
+        "name": "conferidoDAF",
+        "width": 20
+    },
+    {
+        "name": "localTrabalho",
+        "width": 20
+    },
+    {
+        "name": "ano",
+        "width": 20
+    }
+]

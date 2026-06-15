@@ -1,0 +1,39 @@
+{
+    "labels": {
+        "Create PeriodoFerias": "Criar Período de Férias",
+        "PeriodoFerias": "Período de Férias"
+    },
+    "fields": {
+        "name": "Identificação",
+        "timeline": "Timeline",
+        "dateStart": "Data de Início",
+        "dateEnd": "Data de Fim",
+        "dateStartDate": "Data de Início",
+        "dateEndDate": "Data de Fim",
+        "aprovacaoChefia": "Aprovação Chefia",
+        "aprovadirecao": "Aprovação Direção",
+        "aprovadoporChefe": "Aprovado por Chefe",
+        "aprovadoporDiretor": "Aprovado por Diretor",
+        "conferidoDAF": "Conferido DAF",
+        "aprovChefiaEm": "Aprovado Chefia em",
+        "aprovDirEm": "Aprovado Direção em",
+        "meiodia": "Meio Dia",
+        "diasmarcados": "Dias Marcados",
+        "ferias": "Solicitação",
+        "parentName": "Observações",
+        "assignedUser": "Funcionário",
+        "createdBy": "Criado por"
+    },
+    "options": {
+        "aprovacaoChefia": {
+            "Pendente": "Pendente",
+            "Aprovado": "Aprovado",
+            "Recusado": "Recusado"
+        },
+        "aprovadirecao": {
+            "Pendente": "Pendente",
+            "Aprovado": "Aprovado",
+            "Recusado": "Recusado"
+        }
+    }
+}

@@ -1,0 +1,32 @@
+[
+    {
+        "name": "dateStartDate",
+        "width": 18,
+        "link": true
+    },
+    {
+        "name": "dateEndDate",
+        "width": 18
+    },
+    {
+        "name": "diasmarcados",
+        "width": 8,
+        "align": "right"
+    },
+    {
+        "name": "tipoDias",
+        "width": 14
+    },
+    {
+        "name": "aprovacaoChefia",
+        "width": 18
+    },
+    {
+        "name": "aprovadirecao",
+        "width": 18
+    },
+    {
+        "name": "conferidoDAF",
+        "width": 10
+    }
+]

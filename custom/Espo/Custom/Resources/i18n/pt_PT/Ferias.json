@@ -1,0 +1,28 @@
+{
+    "labels": {
+        "Create Ferias": "Criar Férias",
+        "Ferias": "Férias"
+    },
+    "fields": {
+        "name": "Identificação",
+        "timeline": "Timeline",
+        "ano": "Ano",
+        "colaborador": "Colaborador",
+        "nomeCompleto": "Nome completo",
+        "seccao": "Secção",
+        "localTrabalho": "Local de trabalho",
+        "diasFeriasAno": "Dias de férias no ano",
+        "diasDisponiveis": "Dias disponíveis",
+        "conferidoDAF": "Conferido DAF",
+        "assignedUser": "Utilizador atribuído",
+        "teams": "Equipas",
+        "createdAt": "Criado",
+        "modifiedAt": "Modificado",
+        "createdBy": "Criado por",
+        "modifiedBy": "Modificado por"
+    },
+    "links": {
+        "periodoFerias": "Períodos de Férias",
+        "colaborador": "Colaborador"
+    }
+}

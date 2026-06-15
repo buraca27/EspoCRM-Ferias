@@ -1,0 +1,21 @@
+{
+    "entity": true,
+    "object": true,
+    "acl": true,
+    "aclPortal": true,
+    "aclPortalLevelList": ["all", "account", "own", "no"],
+    "customizable": true,
+    "importable": true,
+    "exportable": false,
+    "layouts": {
+        "list": true,
+        "detail": true,
+        "edit": true,
+        "search": false
+    },
+    "stream": false,
+    "type": "Base",
+    "module": "Custom",
+    "isCustom": true,
+    "tab": false
+}

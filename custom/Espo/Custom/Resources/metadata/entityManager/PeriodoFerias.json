@@ -1,0 +1,31 @@
+{
+    "sidePanelFields": {
+        "detail": {
+            "enabled": [
+                "assignedUser",
+                "approvedByManager",
+                "approvedByDirector",
+                "managerApproval",
+                "directorApproval",
+                "verifiedByDAF"
+            ],
+            "disabled": [
+                "Days Marked",
+                "Director Approval",
+                "Director Approved On",
+                "Employee",
+                "End Date",
+                "End Date (day)",
+                "Half Day",
+                "Identification",
+                "Manager Approval",
+                "Manager Approved On",
+                "Notes",
+                "Request",
+                "Start Date",
+                "Start Date (day)",
+                "Verified by DAF"
+            ]
+        }
+    }
+}

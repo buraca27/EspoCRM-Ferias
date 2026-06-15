@@ -1,0 +1,196 @@
+/* Ferias List Styling - Custom Design */
+
+/* Container Principal */
+.list-container.ferias-list {
+    background: white;
+}
+
+/* Header */
+.page-header.ferias-header {
+    margin: 20px 0 15px 0;
+    padding: 15px 20px;
+    border-bottom: 2px solid #e5e5e5;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    border-radius: 4px 4px 0 0;
+}
+
+.page-header.ferias-header h2 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 500;
+    color: #333;
+}
+
+/* Botões */
+.list-container .btn-group {
+    margin-bottom: 15px;
+}
+
+.list-container .btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 4px;
+    padding: 10px 20px;
+    font-weight: 500;
+}
+
+.list-container .btn-primary:hover {
+    background: linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%);
+}
+
+/* Tabela */
+.list-container table {
+    margin: 0;
+    background: white;
+}
+
+.list-container table thead {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.list-container table thead th {
+    padding: 14px 12px;
+    font-weight: 600;
+    color: #495057;
+    text-transform: capitalize;
+    font-size: 13px;
+    border: none;
+    background: #f8f9fa;
+}
+
+.list-container table tbody tr {
+    border-bottom: 1px solid #f0f0f0;
+    transition: all 0.2s ease;
+}
+
+.list-container table tbody tr:hover {
+    background-color: #f9f9ff;
+    box-shadow: inset 0 0 0 1px rgba(100, 100, 255, 0.1);
+}
+
+.list-container table tbody td {
+    padding: 12px;
+    color: #555;
+    font-size: 13px;
+    vertical-align: middle;
+}
+
+/* Links de registos */
+.list-container table a {
+    color: #667eea;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.list-container table a:hover {
+    color: #764ba2;
+    text-decoration: underline;
+}
+
+/* Status Badges */
+.list-cell-status {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-approved {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-pending {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.status-rejected {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+/* Search Bar */
+.list-search {
+    margin: 15px 0;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+}
+
+.list-search .input-group {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.list-search .form-control {
+    height: 36px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.list-search .form-control:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+/* Pagination */
+.list-pagination {
+    margin-top: 15px;
+    text-align: center;
+    padding: 15px 0;
+    border-top: 1px solid #dee2e6;
+}
+
+.pagination {
+    justify-content: center;
+}
+
+.pagination .page-link {
+    color: #667eea;
+    border-color: #dee2e6;
+}
+
+.pagination .page-link:hover {
+    color: #764ba2;
+    background-color: #f8f9fa;
+    border-color: #dee2e6;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #667eea;
+    border-color: #667eea;
+}
+
+/* Checkboxes */
+.list-container input[type="checkbox"] {
+    margin-top: 2px;
+}
+
+/* Empty State */
+.list-container .empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: #999;
+    font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .list-container table {
+        font-size: 12px;
+    }
+
+    .list-container table td,
+    .list-container table th {
+        padding: 8px;
+    }
+
+    .page-header.ferias-header h2 {
+        font-size: 20px;
+    }
+}

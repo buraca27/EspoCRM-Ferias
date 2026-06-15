@@ -1,0 +1,28 @@
+{
+    "labels": {
+        "Create Ferias": "Create Leave",
+        "Ferias": "Leave"
+    },
+    "fields": {
+        "name": "Identification",
+        "timeline": "Timeline",
+        "ano": "Year",
+        "colaborador": "Employee",
+        "nomeCompleto": "Full Name",
+        "seccao": "Section",
+        "localTrabalho": "Workplace",
+        "diasFeriasAno": "Leave Days per Year",
+        "diasDisponiveis": "Available Days",
+        "conferidoDAF": "Verified by DAF",
+        "assignedUser": "Assigned User",
+        "teams": "Teams",
+        "createdAt": "Created",
+        "modifiedAt": "Modified",
+        "createdBy": "Created By",
+        "modifiedBy": "Modified By"
+    },
+    "links": {
+        "periodoFerias": "Leave Periods",
+        "colaborador": "Employee"
+    }
+}

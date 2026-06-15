@@ -1,0 +1,39 @@
+{
+    "labels": {
+        "Create PeriodoFerias": "Create Leave Period",
+        "PeriodoFerias": "Leave Period"
+    },
+    "fields": {
+        "name": "Identification",
+        "timeline": "Timeline",
+        "dateStart": "Start Date",
+        "dateEnd": "End Date",
+        "dateStartDate": "Start Date",
+        "dateEndDate": "End Date",
+        "aprovacaoChefia": "Manager Approval",
+        "aprovadirecao": "Director Approval",
+        "aprovadoporChefe": "Approved by Manager",
+        "aprovadoporDiretor": "Approved by Director",
+        "conferidoDAF": "Verified by DAF",
+        "aprovChefiaEm": "Manager Approved On",
+        "aprovDirEm": "Director Approved On",
+        "meiodia": "Half Day",
+        "diasmarcados": "Days Marked",
+        "ferias": "Request",
+        "parentName": "Notes",
+        "assignedUser": "Employee",
+        "createdBy": "Created By"
+    },
+    "options": {
+        "aprovacaoChefia": {
+            "Pendente": "Pending",
+            "Aprovado": "Approved",
+            "Recusado": "Rejected"
+        },
+        "aprovadirecao": {
+            "Pendente": "Pending",
+            "Aprovado": "Approved",
+            "Recusado": "Rejected"
+        }
+    }
+}

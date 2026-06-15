@@ -1,0 +1,47 @@
+[
+    {
+        "name": "left",
+        "rows": [
+            [
+                {
+                    "name": "dateStart"
+                }
+            ],
+            [
+                {
+                    "name": "dateEnd"
+                }
+            ],
+            [
+                {
+                    "name": "assignedUser"
+                }
+            ],
+            [
+                {
+                    "name": "aprovacaoChefia"
+                }
+            ],
+            [
+                {
+                    "name": "aprovadirecao"
+                }
+            ],
+            [
+                {
+                    "name": "conferidoDAF"
+                }
+            ],
+            [
+                {
+                    "name": "meiodia"
+                }
+            ],
+            [
+                {
+                    "name": "diasmarcados"
+                }
+            ]
+        ]
+    }
+]

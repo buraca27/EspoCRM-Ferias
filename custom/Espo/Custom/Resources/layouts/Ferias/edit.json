@@ -1,0 +1,56 @@
+[
+    {
+        "name": "left",
+        "label": "Vista Geral",
+        "rows": [
+            [
+                {
+                    "name": "ano"
+                },
+                {
+                    "name": "colaborador"
+                }
+            ],
+            [
+                {
+                    "name": "seccao"
+                },
+                {
+                    "name": "nomeCompleto"
+                }
+            ],
+            [
+                {
+                    "name": "localTrabalho"
+                },
+                {
+                    "name": "diasFeriasAno"
+                }
+            ],
+            [
+                {
+                    "name": "diasDisponiveis"
+                },
+                {
+                    "name": "conferidoDAF"
+                }
+            ]
+        ]
+    },
+    {
+        "name": "right",
+        "label": "Detalhes",
+        "rows": [
+            [
+                {
+                    "name": "assignedUser"
+                }
+            ],
+            [
+                {
+                    "name": "teams"
+                }
+            ]
+        ]
+    }
+]

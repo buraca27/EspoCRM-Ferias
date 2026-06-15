@@ -1,0 +1,27 @@
+# === Dependências ===
+/vendor/
+
+# === Dados e configuração sensível ===
+/data/
+
+# === Ficheiro de instalação ===
+/EspoCRM.zip
+/install/
+
+# === Cache e ficheiros gerados ===
+/client/lib/cache/
+*.cache
+
+# === Claude Code (memória local) ===
+/.claude/
+
+# === Editor ===
+/.vscode/
+/.idea/
+*.swp
+*.swo
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini

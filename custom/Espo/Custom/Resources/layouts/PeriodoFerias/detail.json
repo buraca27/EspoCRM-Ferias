@@ -1,0 +1,79 @@
+[
+    {
+        "name": "left",
+        "label": "Período de Férias",
+        "rows": [
+            [
+                {
+                    "name": "dateStartDate"
+                },
+                {
+                    "name": "dateEndDate"
+                }
+            ],
+            [
+                {
+                    "name": "diasmarcados"
+                },
+                {
+                    "name": "tipoDias"
+                }
+            ],
+            [
+                {
+                    "name": "meiodia"
+                },
+                false
+            ],
+            [
+                {
+                    "name": "timeline",
+                    "fullWidth": true,
+                    "noLabel": false
+                }
+            ],
+            [
+                {
+                    "name": "parentName",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    },
+    {
+        "name": "right",
+        "label": "Aprovações",
+        "rows": [
+            [
+                {
+                    "name": "aprovacaoChefia"
+                },
+                {
+                    "name": "aprovadirecao"
+                }
+            ],
+            [
+                {
+                    "name": "aprovadoporChefe"
+                },
+                {
+                    "name": "aprovadoporDiretor"
+                }
+            ],
+            [
+                {
+                    "name": "aprovChefiaEm"
+                },
+                {
+                    "name": "aprovDirEm"
+                }
+            ],
+            [
+                {
+                    "name": "conferidoDAF",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

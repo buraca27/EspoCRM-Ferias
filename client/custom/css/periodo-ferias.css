@@ -1,0 +1,95 @@
+/* PeriodoFerias Styling */
+
+.periodo-ferias-list table tbody tr {
+    border-left: 4px solid transparent;
+    transition: all 0.2s ease;
+}
+
+/* Status colors na barra lateral */
+.periodo-ferias-list table tbody tr:hover {
+    border-left-color: #27ae60;
+    background-color: #f0f8f5;
+}
+
+/* Badges de status */
+.label.label-success {
+    background-color: #27ae60;
+    color: white;
+}
+
+.label.label-warning {
+    background-color: #f39c12;
+    color: white;
+}
+
+.label.label-danger {
+    background-color: #e74c3c;
+    color: white;
+}
+
+/* Detail view styling */
+.record-container .record-title {
+    border-bottom: 3px solid #27ae60;
+}
+
+.periodo-ferias-detail .panel-heading {
+    background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+    color: white;
+}
+
+/* Field styling */
+.field-aprovacaoChefia,
+.field-aprovadirecao {
+    padding: 10px;
+    border-radius: 4px;
+    background: #f8f9fa;
+}
+
+.field-dateStart,
+.field-dateEnd {
+    font-weight: 500;
+    color: #2c3e50;
+}
+
+/* Approval status styling */
+.approval-status {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.approval-approved {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.approval-pending {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.approval-rejected {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+/* Grid layout improvements */
+@media (max-width: 992px) {
+    .detail-view-fields {
+        column-count: 1;
+    }
+}
+
+/* Print styling */
+@media print {
+    .periodo-ferias-detail .btn-group {
+        display: none;
+    }
+
+    .periodo-ferias-detail .panel {
+        page-break-inside: avoid;
+    }
+}

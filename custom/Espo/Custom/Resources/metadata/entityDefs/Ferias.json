@@ -1,0 +1,132 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "ano": {
+            "type": "int",
+            "min": 2000,
+            "max": 2100,
+            "disableFormatting": true
+        },
+        "colaborador": {
+            "type": "link"
+        },
+        "nomeCompleto": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "seccao": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "localTrabalho": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "diasFeriasAno": {
+            "type": "float"
+        },
+        "diasDisponiveis": {
+            "type": "float",
+            "readOnly": true
+        },
+        "diasTransitados": {
+            "type": "float",
+            "default": 0,
+            "readOnly": true
+        },
+        "diasTransitadosUsados": {
+            "type": "float",
+            "default": 0,
+            "readOnly": true
+        },
+        "diasAnoAtualUsados": {
+            "type": "float",
+            "default": 0,
+            "readOnly": true
+        },
+        "dataLimiteTransitados": {
+            "type": "date"
+        },
+        "conferidoDAF": {
+            "type": "varchar",
+            "maxLength": 50
+        },
+        "timeline": {
+            "type": "varchar",
+            "notStorable": true,
+            "readOnly": true,
+            "view": "custom:views/ferias/fields/timeline",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "filterDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "textFilterDisabled": true,
+            "orderDisabled": true
+        },
+        "assignedUser": {
+            "type": "link",
+            "view": "views/fields/assigned-user"
+        },
+        "teams": {
+            "type": "linkMultiple",
+            "view": "views/fields/teams"
+        },
+        "createdAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "modifiedAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "createdBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        },
+        "modifiedBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        }
+    },
+    "links": {
+        "assignedUser": {
+            "type": "belongsTo",
+            "entity": "User",
+            "foreign": "feriasAssigned"
+        },
+        "colaborador": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "createdBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "modifiedBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "teams": {
+            "type": "hasMany",
+            "entity": "Team",
+            "foreign": "ferias",
+            "relationName": "entityTeam",
+            "layoutRelationshipsDisabled": true
+        },
+        "periodoFerias": {
+            "type": "hasMany",
+            "entity": "PeriodoFerias",
+            "foreign": "ferias"
+        }
+    },
+    "collection": {
+        "orderBy": "ano",
+        "order": "desc"
+    }
+}

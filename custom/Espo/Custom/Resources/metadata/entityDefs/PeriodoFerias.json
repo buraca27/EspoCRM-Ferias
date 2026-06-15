@@ -1,0 +1,139 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "dateStart": {
+            "type": "datetime"
+        },
+        "dateEnd": {
+            "type": "datetime"
+        },
+        "dateStartDate": {
+            "type": "date",
+            "view": "custom:views/periodo-ferias/fields/date-start-date"
+        },
+        "dateEndDate": {
+            "type": "date"
+        },
+        "aprovacaoChefia": {
+            "type": "enum",
+            "options": [
+                "Pendente",
+                "Aprovado",
+                "Recusado"
+            ],
+            "default": "Pendente",
+            "displayAsLabel": true,
+            "labelType": "state",
+            "style": {
+                "Aprovado": "success",
+                "Pendente": "warning",
+                "Recusado": "danger"
+            }
+        },
+        "aprovadirecao": {
+            "type": "enum",
+            "options": [
+                "Pendente",
+                "Aprovado",
+                "Recusado"
+            ],
+            "default": "Pendente",
+            "displayAsLabel": true,
+            "labelType": "state",
+            "style": {
+                "Aprovado": "success",
+                "Pendente": "warning",
+                "Recusado": "danger"
+            }
+        },
+        "aprovadoporChefe": {
+            "type": "varchar",
+            "maxLength": 100
+        },
+        "aprovadoporDiretor": {
+            "type": "varchar",
+            "maxLength": 100
+        },
+        "conferidoDAF": {
+            "type": "varchar",
+            "maxLength": 10
+        },
+        "aprovChefiaEm": {
+            "type": "date"
+        },
+        "aprovDirEm": {
+            "type": "date"
+        },
+        "meiodia": {
+            "type": "bool",
+            "default": false
+        },
+        "diasmarcados": {
+            "type": "int",
+            "readOnly": true
+        },
+        "tipoDias": {
+            "type": "enum",
+            "options": ["Ano Atual", "Ano Anterior"],
+            "default": "Ano Atual",
+            "displayAsLabel": true,
+            "labelType": "state",
+            "style": {
+                "Ano Atual": "success",
+                "Ano Anterior": "info"
+            }
+        },
+        "parentName": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "timeline": {
+            "type": "varchar",
+            "notStorable": true,
+            "readOnly": true,
+            "view": "custom:views/periodo-ferias/fields/timeline",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "filterDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "textFilterDisabled": true,
+            "orderDisabled": true
+        },
+        "createdBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        },
+        "assignedUser": {
+            "type": "link",
+            "view": "views/fields/assigned-user"
+        },
+        "ferias": {
+            "type": "link",
+            "view": "views/fields/link"
+        }
+    },
+    "links": {
+        "ferias": {
+            "type": "belongsTo",
+            "entity": "Ferias",
+            "foreign": "periodoFerias"
+        },
+        "createdBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "assignedUser": {
+            "type": "belongsTo",
+            "entity": "User"
+        }
+    },
+    "collection": {
+        "orderBy": "dateStart",
+        "order": "desc"
+    }
+}

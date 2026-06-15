@@ -1,0 +1,15 @@
+{
+    "controller": "controllers/record",
+    "iconClass": "fas fa-calendar-check",
+    "color": "#27ae60",
+    "views": {
+        "list": "views/list",
+        "detail": "views/detail",
+        "edit": "views/edit"
+    },
+    "recordViews": {
+        "edit": "custom:views/periodo-ferias/record/edit",
+        "editSmall": "custom:views/periodo-ferias/record/edit"
+    }
+}
+

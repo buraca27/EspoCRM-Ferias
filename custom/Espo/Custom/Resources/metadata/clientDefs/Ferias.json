@@ -1,0 +1,16 @@
+{
+    "controller": "controllers/record",
+    "iconClass": "fas fa-umbrella-beach",
+    "color": "#4a90d9",
+    "views": {
+        "list": "custom:views/ferias/list",
+        "detail": "views/detail",
+        "edit": "views/edit"
+    },
+    "relationshipPanels": {
+        "periodoFerias": {
+            "orderBy": "dateStart",
+            "order": "asc"
+        }
+    }
+}
