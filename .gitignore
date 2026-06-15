@@ -5,7 +5,6 @@
 /data/
 
 # === Ficheiro de instalação ===
-/EspoCRM.zip
 /install/
 
 # === Cache e ficheiros gerados ===
