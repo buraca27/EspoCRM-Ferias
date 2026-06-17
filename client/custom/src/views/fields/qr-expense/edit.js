@@ -5,186 +5,154 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
     return Dep.extend({
 
-        templateContent: `
-            <div class="qr-expense-wrap" style="font-family:inherit;">
-
-                {{#unless scanning}}
-                    {{#if qrRead}}
-                        <button class="btn btn-success qr-scan-btn" type="button" style="margin-bottom:8px;">
-                            <span class="fas fa-check" style="margin-right:6px;"></span>QR lido
-                        </button>
-                    {{else}}
-                        <button class="btn btn-primary qr-scan-btn" type="button" style="margin-bottom:8px;">
-                            <span class="fas fa-qrcode" style="margin-right:6px;"></span>Scan Fatura
-                        </button>
-                    {{/if}}
-                {{/unless}}
-
-                <div class="qr-camera-area" style="display:none;position:relative;max-width:400px;">
-                    <video class="qr-video" autoplay playsinline muted
-                        style="width:100%;border-radius:8px;background:#000;display:block;"></video>
-
-                    <canvas class="qr-canvas" style="display:none;"></canvas>
-
-                    <div class="qr-overlay" style="position:absolute;inset:0;display:flex;align-items:center;
-                        justify-content:center;pointer-events:none;">
-                        <div style="width:60%;aspect-ratio:1;border:3px solid rgba(74,144,217,.8);
-                            border-radius:12px;box-shadow:0 0 0 2000px rgba(0,0,0,.35);"></div>
-                    </div>
-
-                    <div class="qr-countdown" style="position:absolute;top:10px;right:12px;
-                        background:rgba(0,0,0,.6);color:#fff;border-radius:20px;
-                        padding:4px 12px;font-size:13px;font-weight:600;">
-                        <span class="fas fa-clock" style="margin-right:4px;"></span>
-                        <span class="qr-countdown-val">15</span>s
-                    </div>
-
-                    <button class="btn btn-default qr-cancel-btn" type="button"
-                        style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
-                        background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:20px;
-                        padding:6px 18px;font-size:13px;">
-                        Cancelar
-                    </button>
-                </div>
-
-                {{#if attachmentName}}
-                    <div class="qr-attach-info" style="margin-top:6px;font-size:13px;color:#555;">
-                        <span class="fas fa-paperclip" style="color:#4a90d9;margin-right:5px;"></span>
-                        {{attachmentName}}
-                    </div>
-                {{/if}}
-
-                {{#if errorMsg}}
-                    <div style="color:#e74c3c;font-size:13px;margin-top:6px;">
-                        <span class="fas fa-exclamation-triangle" style="margin-right:4px;"></span>
-                        {{errorMsg}}
-                    </div>
-                {{/if}}
-            </div>
-        `,
-
-        data: function () {
-            return {
-                scanning: this._scanning || false,
-                qrRead: this._qrRead || false,
-                attachmentName: this.model.get('documentocontabName') || null,
-                errorMsg: this._errorMsg || null
-            };
-        },
+        templateContent: '<div class="qr-expense-root"></div>',
 
         setup: function () {
             Dep.prototype.setup.call(this);
-            this._scanning = false;
-            this._qrRead = false;
-            this._errorMsg = null;
-            this._stream = null;
-            this._rafId = null;
-            this._countdownInterval = null;
-            this._timeoutHandle = null;
-            this._jsqrLoaded = false;
+            this._scanning   = false;
+            this._stream     = null;
+            this._rafId      = null;
+            this._cdnTimer   = null;
+            this._countTimer = null;
         },
 
         afterRender: function () {
             Dep.prototype.afterRender.call(this);
+            this._buildUI();
+        },
 
-            this.$el.find('.qr-scan-btn').on('click', function () {
+        _buildUI: function () {
+            var attachName = this.model.get('documentocontabName') || '';
+            var attachId   = this.model.get('documentocontabId')   || '';
+
+            var attachHtml = attachId
+                ? '<div class="qr-attach" style="margin-top:6px;font-size:13px;color:#555;">' +
+                  '<span class="fas fa-paperclip" style="color:#4a90d9;margin-right:5px;"></span>' +
+                  '<a href="/?entryPoint=download&id=' + attachId + '" target="_blank">' + attachName + '</a></div>'
+                : '<div class="qr-attach" style="display:none;margin-top:6px;font-size:13px;color:#555;"></div>';
+
+            var html =
+                '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">' +
+                    '<button class="btn btn-default qr-btn-scan" type="button" ' +
+                    'style="display:flex;align-items:center;gap:6px;padding:7px 14px;">' +
+                    '<span class="fas fa-camera" style="font-size:15px;"></span>' +
+                    '<span class="qr-btn-label">Scan / Foto</span>' +
+                    '</button>' +
+                    '<span class="qr-status" style="font-size:13px;color:#888;"></span>' +
+                '</div>' +
+
+                '<div class="qr-camera-wrap" style="display:none;position:relative;max-width:420px;' +
+                'border-radius:10px;overflow:hidden;background:#000;">' +
+                    '<video class="qr-video" autoplay playsinline muted ' +
+                    'style="width:100%;display:block;max-height:300px;object-fit:cover;"></video>' +
+
+                    '<canvas class="qr-canvas" style="display:none;"></canvas>' +
+
+                    '<div style="position:absolute;inset:0;display:flex;align-items:center;' +
+                    'justify-content:center;pointer-events:none;">' +
+                        '<div style="width:55%;aspect-ratio:1;border:3px solid rgba(74,144,217,.9);' +
+                        'border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.4);"></div>' +
+                    '</div>' +
+
+                    '<div class="qr-countdown" style="position:absolute;top:10px;right:12px;' +
+                    'background:rgba(0,0,0,.6);color:#fff;border-radius:20px;' +
+                    'padding:3px 11px;font-size:13px;font-weight:600;">' +
+                        '<span class="fas fa-clock" style="margin-right:4px;font-size:11px;"></span>' +
+                        '<span class="qr-secs">' + SCAN_TIMEOUT_SEC + '</span>s' +
+                    '</div>' +
+
+                    '<div style="position:absolute;bottom:10px;left:0;right:0;' +
+                    'display:flex;justify-content:center;gap:10px;">' +
+                        '<button class="btn qr-btn-cancel" type="button" ' +
+                        'style="background:rgba(0,0,0,.55);color:#fff;border:none;' +
+                        'border-radius:20px;padding:5px 18px;font-size:12px;">' +
+                        'Cancelar</button>' +
+                    '</div>' +
+                '</div>' +
+
+                attachHtml +
+                '<div class="qr-error" style="display:none;color:#e74c3c;font-size:13px;margin-top:5px;"></div>';
+
+            this.$el.find('.qr-expense-root').html(html);
+
+            this.$el.find('.qr-btn-scan').on('click', function () {
                 this._startScan();
             }.bind(this));
 
-            this.$el.find('.qr-cancel-btn').on('click', function () {
+            this.$el.find('.qr-btn-cancel').on('click', function () {
                 this._stopCamera();
-                this._scanning = false;
-                this.reRender();
             }.bind(this));
         },
 
-        _loadJsQR: function (callback) {
-            if (window.jsQR) {
-                callback();
-                return;
-            }
-
-            var script = document.createElement('script');
-            script.src = JSQR_CDN;
-            script.onload = function () {
-                callback();
-            };
-            script.onerror = function () {
-                this._showError('Erro ao carregar jsQR. Verifica a ligação à internet.');
-            }.bind(this);
-
-            document.head.appendChild(script);
-        },
-
         _startScan: function () {
+            this._clearError();
+
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                this._showError('Camera não suportada neste browser. Usa HTTPS e um browser moderno.');
+                this._showError('Camera nao suportada. Usa HTTPS e um browser moderno.');
                 return;
             }
 
-            this._scanning = true;
-            this._errorMsg = null;
-            this.reRender();
+            this._setStatus('A carregar camera...');
+            this._setBtnState('loading');
 
             this._loadJsQR(function () {
                 navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { ideal: 'environment' } }
+                    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }
                 }).then(function (stream) {
                     this._stream = stream;
-                    this._startVideoLoop(stream);
+                    this._scanning = true;
+                    this._openCameraUI(stream);
                 }.bind(this)).catch(function (err) {
-                    this._scanning = false;
-                    this._showError('Sem acesso à câmara: ' + err.message);
+                    this._setBtnState('idle');
+                    this._showError('Sem acesso a camera: ' + err.message);
                 }.bind(this));
             }.bind(this));
         },
 
-        _startVideoLoop: function (stream) {
-            var $area = this.$el.find('.qr-camera-area');
-            $area.show();
+        _openCameraUI: function (stream) {
+            var $wrap  = this.$el.find('.qr-camera-wrap');
+            var video  = this.$el.find('.qr-video')[0];
+            var canvas = this.$el.find('.qr-canvas')[0];
+            var ctx    = canvas.getContext('2d');
 
-            var video = this.$el.find('.qr-video')[0];
+            $wrap.show();
+            this._setBtnState('scanning');
+            this._setStatus('');
+
             video.srcObject = stream;
             video.play();
 
-            var canvas = this.$el.find('.qr-canvas')[0];
-            var ctx = canvas.getContext('2d');
-
             var remaining = SCAN_TIMEOUT_SEC;
-            var $countVal = this.$el.find('.qr-countdown-val');
+            var $secs = this.$el.find('.qr-secs');
 
-            this._countdownInterval = setInterval(function () {
+            this._countTimer = setInterval(function () {
                 remaining -= 1;
-                $countVal.text(remaining);
+                $secs.text(remaining);
 
                 if (remaining <= 0) {
-                    clearInterval(this._countdownInterval);
+                    clearInterval(this._countTimer);
                     this._onTimeout(canvas, ctx, video);
                 }
             }.bind(this), 1000);
 
             var self = this;
-
             var tick = function () {
-                if (!self._scanning) {
-                    return;
-                }
+                if (!self._scanning) { return; }
 
                 if (video.readyState === video.HAVE_ENOUGH_DATA) {
                     canvas.width  = video.videoWidth;
                     canvas.height = video.videoHeight;
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-                    var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    var code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+                    var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    var code    = window.jsQR(imgData.data, imgData.width, imgData.height, {
                         inversionAttempts: 'dontInvert'
                     });
 
                     if (code && code.data) {
                         var parsed = self._parseQrAT(code.data);
-
                         if (parsed) {
-                            clearInterval(self._countdownInterval);
+                            clearInterval(self._countTimer);
                             self._applyParsed(parsed);
                             self._captureAndUpload(canvas, true);
                             return;
@@ -214,7 +182,6 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             }
 
             var fields = {};
-
             raw.split('*').forEach(function (pair) {
                 var idx = pair.indexOf(':');
                 if (idx > -1) {
@@ -225,32 +192,29 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             var nif    = fields['A'] || '';
             var total  = parseFloat(fields['O'] || '0') || 0;
 
-            // Pick the largest base/IVA pair from I2/I3, I4/I5, I6/I7
-            var bases = [
+            var pairs = [
                 { base: parseFloat(fields['I2'] || '0'), iva: parseFloat(fields['I3'] || '0') },
                 { base: parseFloat(fields['I4'] || '0'), iva: parseFloat(fields['I5'] || '0') },
                 { base: parseFloat(fields['I6'] || '0'), iva: parseFloat(fields['I7'] || '0') }
             ];
 
-            var dominant = bases.reduce(function (best, cur) {
-                return cur.base > best.base ? cur : best;
-            }, { base: 0, iva: 0 });
+            var best = pairs.reduce(function (a, b) { return b.base > a.base ? b : a; }, { base: 0, iva: 0 });
 
-            var subtotal = dominant.base;
-            var iva      = dominant.iva;
-            var taxaiva  = (subtotal > 0)
-                ? Math.round((iva / subtotal) * 100)
-                : 0;
-
-            return { nif: nif, subtotal: subtotal, iva: iva, taxaiva: taxaiva, total: total };
+            return {
+                nif:     nif,
+                subtotal: best.base,
+                iva:      best.iva,
+                taxaiva:  best.base > 0 ? Math.round((best.iva / best.base) * 100) : 0,
+                total:    total
+            };
         },
 
-        _applyParsed: function (parsed) {
-            this.model.set('nifdocumento', parsed.nif);
-            this.model.set('subtotal',     parsed.subtotal);
-            this.model.set('iva',          parsed.iva);
-            this.model.set('taxaiva',      parsed.taxaiva);
-            this.model.set('total',        parsed.total);
+        _applyParsed: function (p) {
+            this.model.set('nifdocumento', p.nif);
+            this.model.set('subtotal',     p.subtotal);
+            this.model.set('iva',          p.iva);
+            this.model.set('taxaiva',      p.taxaiva);
+            this.model.set('total',        p.total);
         },
 
         _captureAndUpload: function (canvas, qrSuccess) {
@@ -258,97 +222,107 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
             canvas.toBlob(function (blob) {
                 self._stopCamera();
-                self._scanning = false;
 
                 if (!blob) {
-                    self._qrRead = qrSuccess;
-                    self.reRender();
+                    self._setBtnState(qrSuccess ? 'done' : 'idle');
                     return;
                 }
 
-                self._uploadAttachment(blob, qrSuccess);
-            }, 'image/jpeg', 0.85);
+                self._setStatus('A enviar imagem...');
+                self._uploadBlob(blob, qrSuccess);
+            }, 'image/jpeg', 0.88);
         },
 
-        _uploadAttachment: function (blob, qrSuccess) {
-            var self = this;
+        _uploadBlob: function (blob, qrSuccess) {
+            var self     = this;
             var fileName = 'fatura-' + Date.now() + '.jpg';
+            var reader   = new FileReader();
 
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', window.location.origin + '/api/v1/Attachment');
-            xhr.setRequestHeader('X-Espo-Authorization', this._getAuthHeader());
-            xhr.setRequestHeader('Content-Type', 'application/json');
+            reader.onload = function (e) {
+                var payload = JSON.stringify({
+                    name:       fileName,
+                    type:       'image/jpeg',
+                    parentType: 'Contabdoc',
+                    role:       'Attachment',
+                    file:       e.target.result
+                });
 
-            xhr.onload = function () {
-                if (xhr.status === 200 || xhr.status === 201) {
-                    try {
-                        var resp = JSON.parse(xhr.responseText);
-
-                        if (resp.id) {
+                Espo.Ajax.postRequest('Attachment', JSON.parse(payload))
+                    .then(function (resp) {
+                        if (resp && resp.id) {
                             self.model.set('documentocontabId',   resp.id);
                             self.model.set('documentocontabName', resp.name || fileName);
+                            self._updateAttachLine(resp.id, resp.name || fileName);
                         }
-                    } catch (e) {}
-                }
 
-                self._qrRead = qrSuccess;
-                self.reRender();
+                        self._setBtnState(qrSuccess ? 'done' : 'idle');
+                        self._setStatus(qrSuccess ? 'QR lido com sucesso' : 'Foto guardada');
+                    })
+                    .catch(function () {
+                        self._setBtnState(qrSuccess ? 'done' : 'idle');
+                        self._setStatus('Imagem nao enviada');
+                    });
             };
 
-            xhr.onerror = function () {
-                self._qrRead = qrSuccess;
-                self.reRender();
-            };
-
-            var payload = {
-                name:          fileName,
-                type:          'image/jpeg',
-                parentType:    'Contabdoc',
-                role:          'Attachment',
-                file:          null
-            };
-
-            // Convert blob to base64 and send
-            var reader = new FileReader();
-            reader.onload = function (e) {
-                payload.file = e.target.result;
-                xhr.send(JSON.stringify(payload));
-            };
             reader.readAsDataURL(blob);
         },
 
-        _getAuthHeader: function () {
-            // Use the EspoCRM session token from the app
-            try {
-                var auth = this.getHelper().getAppParam('auth') ||
-                           this.getHelper().getAppParam('token');
+        _updateAttachLine: function (id, name) {
+            var $a = this.$el.find('.qr-attach');
+            $a.html(
+                '<span class="fas fa-paperclip" style="color:#4a90d9;margin-right:5px;"></span>' +
+                '<a href="/?entryPoint=download&id=' + id + '" target="_blank">' + name + '</a>'
+            ).show();
+        },
 
-                if (auth) {
-                    return auth;
-                }
-            } catch (e) {}
+        _setBtnState: function (state) {
+            var $btn   = this.$el.find('.qr-btn-scan');
+            var $label = this.$el.find('.qr-btn-label');
+            var $icon  = $btn.find('.fas');
 
-            // Fallback: read from cookie or localStorage
-            var token = document.cookie.split(';').map(function (c) {
-                return c.trim();
-            }).filter(function (c) {
-                return c.startsWith('auth-token=');
-            }).map(function (c) {
-                return c.split('=')[1];
-            })[0];
+            $btn.prop('disabled', state === 'loading' || state === 'scanning');
 
-            return token || '';
+            if (state === 'idle') {
+                $icon.attr('class', 'fas fa-camera').css('font-size', '15px');
+                $label.text('Scan / Foto');
+                $btn.removeClass('btn-success btn-warning').addClass('btn-default');
+            } else if (state === 'loading') {
+                $icon.attr('class', 'fas fa-spinner fa-spin');
+                $label.text('A carregar...');
+                $btn.removeClass('btn-success btn-warning').addClass('btn-default');
+            } else if (state === 'scanning') {
+                $icon.attr('class', 'fas fa-camera').css('font-size', '15px');
+                $label.text('A ler...');
+            } else if (state === 'done') {
+                $icon.attr('class', 'fas fa-check');
+                $label.text('QR lido');
+                $btn.removeClass('btn-default btn-warning').addClass('btn-success');
+            }
+        },
+
+        _setStatus: function (msg) {
+            this.$el.find('.qr-status').text(msg);
+        },
+
+        _showError: function (msg) {
+            this.$el.find('.qr-error').text(msg).show();
+        },
+
+        _clearError: function () {
+            this.$el.find('.qr-error').hide().text('');
         },
 
         _stopCamera: function () {
+            this._scanning = false;
+
             if (this._rafId) {
                 cancelAnimationFrame(this._rafId);
                 this._rafId = null;
             }
 
-            if (this._countdownInterval) {
-                clearInterval(this._countdownInterval);
-                this._countdownInterval = null;
+            if (this._countTimer) {
+                clearInterval(this._countTimer);
+                this._countTimer = null;
             }
 
             if (this._stream) {
@@ -357,15 +331,24 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             }
 
             var video = this.$el.find('.qr-video')[0];
-            if (video) {
-                video.srcObject = null;
-            }
+            if (video) { video.srcObject = null; }
+
+            this.$el.find('.qr-camera-wrap').hide();
+            this._setBtnState(this.model.get('documentocontabId') ? 'done' : 'idle');
         },
 
-        _showError: function (msg) {
-            this._errorMsg = msg;
-            this._scanning = false;
-            this.reRender();
+        _loadJsQR: function (cb) {
+            if (window.jsQR) { cb(); return; }
+
+            var script  = document.createElement('script');
+            script.src  = JSQR_CDN;
+            script.onload  = cb;
+            script.onerror = function () {
+                this._showError('Erro ao carregar jsQR. Verifica a ligacao.');
+                this._setBtnState('idle');
+            }.bind(this);
+
+            document.head.appendChild(script);
         },
 
         onRemove: function () {
