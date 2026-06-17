@@ -1,7 +1,10 @@
 define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (Dep) {
 
     var SCAN_TIMEOUT_SEC = 15;
-    var JSQR_CDN = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+    var JSQR_URL = (function () {
+        var base = window.location.pathname.split('#')[0].replace(/\/+$/, '');
+        return window.location.origin + base + '/client/custom/lib/jsqr.min.js';
+    }());
 
     return Dep.extend({
 
@@ -358,10 +361,10 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             if (window.jsQR) { cb(); return; }
 
             var script  = document.createElement('script');
-            script.src  = JSQR_CDN;
+            script.src  = JSQR_URL;
             script.onload  = cb;
             script.onerror = function () {
-                this._showError('Erro ao carregar jsQR. Verifica a ligacao.');
+                this._showError('Erro ao carregar jsQR.');
                 this._setBtnState('idle');
             }.bind(this);
 
