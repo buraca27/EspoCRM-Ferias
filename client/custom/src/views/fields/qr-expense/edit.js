@@ -360,11 +360,20 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         _loadQrScanner: function (cb) {
             if (window.QrScanner) { cb(); return; }
 
-            var self   = this;
+            var self = this;
+            /* Suppress AMD so the UMD build assigns to window.QrScanner
+               instead of calling define() (which EspoCRM's RequireJS would intercept) */
+            var savedDefine = window.define;
+            window.define = undefined;
+
             var script = document.createElement('script');
             script.src = QR_SCANNER_URL;
-            script.onload  = cb;
+            script.onload = function () {
+                window.define = savedDefine;
+                cb();
+            };
             script.onerror = function () {
+                window.define = savedDefine;
                 self._showError('Erro ao carregar QrScanner.');
                 self._setBtnState('idle');
             };
