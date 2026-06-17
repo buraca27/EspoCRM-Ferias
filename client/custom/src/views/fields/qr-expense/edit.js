@@ -1,10 +1,10 @@
 define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (Dep) {
 
     var SCAN_TIMEOUT_SEC = 15;
-    var JSQR_URL = (function () {
-        var base = window.location.pathname.split('#')[0].replace(/\/+$/, '');
-        return window.location.origin + base + '/client/custom/lib/jsqr.min.js';
+    var BASE_PATH = (function () {
+        return window.location.origin + window.location.pathname.split('#')[0].replace(/\/+$/, '');
     }());
+    var JSQR_URL = BASE_PATH + '/client/custom/lib/jsqr.min.js';
 
     return Dep.extend({
 
@@ -35,7 +35,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
             var html = attachId
                 ? '<span class="fas fa-paperclip" style="color:#4a90d9;margin-right:5px;"></span>' +
-                  '<a href="/?entryPoint=download&id=' + attachId + '" target="_blank">' + attachName + '</a>'
+                  '<a href="' + BASE_PATH + '/?entryPoint=download&id=' + attachId + '" target="_blank">' + attachName + '</a>'
                 : '<span style="color:#aaa;">Sem documento</span>';
 
             this.$el.find('.qr-expense-root').html(html);
@@ -48,7 +48,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             var attachHtml = attachId
                 ? '<div class="qr-attach" style="margin-top:6px;font-size:13px;color:#555;">' +
                   '<span class="fas fa-paperclip" style="color:#4a90d9;margin-right:5px;"></span>' +
-                  '<a href="/?entryPoint=download&id=' + attachId + '" target="_blank">' + attachName + '</a></div>'
+                  '<a href="' + BASE_PATH + '/?entryPoint=download&id=' + attachId + '" target="_blank">' + attachName + '</a></div>'
                 : '<div class="qr-attach" style="display:none;margin-top:6px;font-size:13px;color:#555;"></div>';
 
             var html =
@@ -197,7 +197,9 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         },
 
         _parseQrAT: function (raw) {
-            if (!raw || raw.indexOf('A:') === -1 || raw.indexOf('O:') === -1) {
+            if (!raw) { return null; }
+            raw = raw.replace(/[\r\n\s]/g, '');
+            if (raw.indexOf('A:') === -1 || raw.indexOf('O:') === -1) {
                 return null;
             }
 
@@ -292,7 +294,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             var $a = this.$el.find('.qr-attach');
             $a.html(
                 '<span class="fas fa-paperclip" style="color:#4a90d9;margin-right:5px;"></span>' +
-                '<a href="/?entryPoint=download&id=' + id + '" target="_blank">' + name + '</a>'
+                '<a href="' + BASE_PATH + '/?entryPoint=download&id=' + id + '" target="_blank">' + name + '</a>'
             ).show();
         },
 
