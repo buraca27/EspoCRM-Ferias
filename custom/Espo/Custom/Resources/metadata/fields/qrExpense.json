@@ -8,7 +8,5 @@
     "importDisabled": true,
     "textFilterDisabled": true,
     "orderDisabled": true,
-    "view": "custom:views/fields/qr-expense/edit",
-    "detailView": "custom:views/fields/qr-expense/detail",
-    "editView": "custom:views/fields/qr-expense/edit"
+    "view": "custom:views/fields/qr-expense/edit"
 }

@@ -18,7 +18,24 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
         afterRender: function () {
             Dep.prototype.afterRender.call(this);
-            this._buildUI();
+
+            if (this.mode === 'detail' || this.mode === 'list') {
+                this._buildDetailUI();
+            } else {
+                this._buildUI();
+            }
+        },
+
+        _buildDetailUI: function () {
+            var attachId   = this.model.get('documentocontabId')   || '';
+            var attachName = this.model.get('documentocontabName') || '';
+
+            var html = attachId
+                ? '<span class="fas fa-paperclip" style="color:#4a90d9;margin-right:5px;"></span>' +
+                  '<a href="/?entryPoint=download&id=' + attachId + '" target="_blank">' + attachName + '</a>'
+                : '<span style="color:#aaa;">Sem documento</span>';
+
+            this.$el.find('.qr-expense-root').html(html);
         },
 
         _buildUI: function () {
