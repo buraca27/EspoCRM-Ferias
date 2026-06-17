@@ -11,10 +11,6 @@
                 { "name": "status" }
             ],
             [
-                { "name": "despesa" },
-                { "name": "sNC" }
-            ],
-            [
                 { "name": "nifdocumento" },
                 { "name": "total" }
             ],
