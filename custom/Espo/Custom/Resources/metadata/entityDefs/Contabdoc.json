@@ -1,9 +1,116 @@
 {
     "fields": {
+        "name": {
+            "type": "varchar",
+            "maxLength": 255,
+            "required": true
+        },
+        "status": {
+            "type": "enum",
+            "options": ["Pendente", "Carregado", "Processado", "Rejeitado"],
+            "default": "Pendente",
+            "displayAsLabel": true,
+            "labelType": "state",
+            "style": {
+                "Pendente": "warning",
+                "Carregado": "info",
+                "Processado": "success",
+                "Rejeitado": "danger"
+            }
+        },
+        "nifdocumento": {
+            "type": "varchar",
+            "maxLength": 20,
+            "label": "NIF Emitente"
+        },
+        "subtotal": {
+            "type": "float",
+            "label": "Subtotal"
+        },
+        "iva": {
+            "type": "float",
+            "label": "IVA"
+        },
+        "taxaiva": {
+            "type": "float",
+            "label": "Taxa IVA (%)"
+        },
+        "total": {
+            "type": "float",
+            "label": "Total"
+        },
+        "idphc": {
+            "type": "varchar",
+            "maxLength": 50,
+            "label": "ID PHC"
+        },
+        "idcontab": {
+            "type": "varchar",
+            "maxLength": 50,
+            "label": "ID Contab"
+        },
+        "documentocontab": {
+            "type": "file",
+            "label": "Documento"
+        },
         "qrScanner": {
             "type": "qrExpense",
             "notStorable": true,
             "label": "Scan Fatura"
+        },
+        "description": {
+            "type": "text",
+            "label": "Descrição"
+        },
+        "assignedUser": {
+            "type": "link",
+            "view": "views/fields/assigned-user"
+        },
+        "createdAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "modifiedAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "createdBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        },
+        "modifiedBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        },
+        "teams": {
+            "type": "linkMultiple",
+            "view": "views/fields/teams"
         }
+    },
+    "links": {
+        "assignedUser": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "createdBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "modifiedBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "teams": {
+            "type": "hasMany",
+            "entity": "Team",
+            "relationName": "EntityTeam",
+            "layoutRelationshipsDisabled": true
+        }
+    },
+    "collection": {
+        "orderBy": "createdAt",
+        "order": "desc"
     }
 }

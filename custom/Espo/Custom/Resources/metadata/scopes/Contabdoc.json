@@ -1,0 +1,15 @@
+{
+    "entity": true,
+    "object": true,
+    "tab": true,
+    "acl": true,
+    "hasOwner": true,
+    "hasAssignedUser": true,
+    "hasTeam": true,
+    "stream": false,
+    "importable": true,
+    "exportable": true,
+    "customizable": true,
+    "module": "Custom",
+    "isCustom": true
+}

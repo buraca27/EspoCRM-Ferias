@@ -1,0 +1,10 @@
+{
+    "controller": "controllers/record",
+    "iconClass": "fas fa-file-invoice",
+    "color": "#2980b9",
+    "views": {
+        "list": "views/list",
+        "detail": "views/detail",
+        "edit": "views/edit"
+    }
+}
