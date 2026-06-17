@@ -165,21 +165,30 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             });
 
             var self = this;
-            var tick = function () {
+            var lastScanTime = 0;
+            var SCAN_INTERVAL = 200; // scan 5x/s instead of 60x/s
+
+            this._setStatus('Aponta a camera ao QR code da fatura...');
+
+            var tick = function (now) {
                 if (!self._scanning) { return; }
 
-                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                if (now - lastScanTime >= SCAN_INTERVAL &&
+                    video.readyState === video.HAVE_ENOUGH_DATA &&
+                    video.videoWidth > 0) {
+
+                    lastScanTime = now;
                     canvas.width  = video.videoWidth;
                     canvas.height = video.videoHeight;
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
                     var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                     var code    = window.jsQR(imgData.data, imgData.width, imgData.height, {
-                        inversionAttempts: 'attemptBoth'
+                        inversionAttempts: 'dontInvert'
                     });
 
                     if (code && code.data) {
-                        console.log('[QR] raw:', code.data.substring(0, 120));
+                        console.log('[QR] raw:', code.data.substring(0, 200));
                         var parsed = self._parseQrAT(code.data);
                         if (parsed) {
                             clearInterval(self._countTimer);
@@ -187,17 +196,15 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                             self._captureAndUpload(canvas, true);
                             return;
                         } else {
-                            self._setStatus('QR lido (formato desconhecido)...');
+                            self._setStatus('QR lido mas nao e formato AT...');
                         }
-                    } else {
-                        self._setStatus('A procurar QR AT...');
                     }
                 }
 
                 self._rafId = requestAnimationFrame(tick);
             };
 
-            this._rafId = requestAnimationFrame(tick);
+            this._rafId = requestAnimationFrame(function (ts) { tick(ts || 0); });
         },
 
         _onTimeout: function (canvas, ctx, video) {
