@@ -1,0 +1,38 @@
+[
+    {
+        "name": "main",
+        "label": "Documento",
+        "rows": [
+            [
+                { "name": "qrScanner", "fullWidth": true, "noLabel": false }
+            ],
+            [
+                { "name": "name" },
+                { "name": "status" }
+            ],
+            [
+                { "name": "despesa" },
+                { "name": "sNC" }
+            ],
+            [
+                { "name": "nifdocumento" },
+                { "name": "total" }
+            ],
+            [
+                { "name": "subtotal" },
+                { "name": "iva" }
+            ],
+            [
+                { "name": "taxaiva" },
+                { "name": "documentocontab" }
+            ],
+            [
+                { "name": "idphc" },
+                { "name": "idcontab" }
+            ],
+            [
+                { "name": "description", "fullWidth": true }
+            ]
+        ]
+    }
+]
