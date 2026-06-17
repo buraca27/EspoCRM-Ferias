@@ -9,6 +9,10 @@ Options -Indexes
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # Force HTTPS
+    RewriteCond %{HTTPS} off
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
     # Forbid access. Not actual as redirect to `public` is applied.
     # An extra security measure if redirect not fired.
     RewriteRule ^/?data/ - [F]
