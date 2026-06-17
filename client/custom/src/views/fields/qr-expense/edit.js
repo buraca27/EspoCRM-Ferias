@@ -6,6 +6,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
     }());
     var QR_SCANNER_URL = BASE_PATH + '/client/custom/lib/qr-scanner.umd.min.js';
     var QR_WORKER_URL  = BASE_PATH + '/client/custom/lib/qr-scanner-worker.min.js';
+    var JSPDF_URL      = BASE_PATH + '/client/custom/lib/jspdf.umd.min.js';
 
     return Dep.extend({
 
@@ -13,9 +14,9 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
         setup: function () {
             Dep.prototype.setup.call(this);
-            this._scanning    = false;
-            this._qrScanner   = null;
-            this._countTimer  = null;
+            this._scanning   = false;
+            this._qrScanner  = null;
+            this._countTimer = null;
         },
 
         afterRender: function () {
@@ -27,7 +28,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             }
         },
 
-        /* ── Detail mode ────────────────────────────────────── */
+        /* ── Detail mode ─────────────────────────────────────── */
 
         _buildDetailUI: function () {
             var attachId   = this.model.get('documentocontabId')   || '';
@@ -40,7 +41,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             this.$el.find('.qr-expense-root').html(html);
         },
 
-        /* ── Edit mode ──────────────────────────────────────── */
+        /* ── Edit mode ───────────────────────────────────────── */
 
         _buildUI: function () {
             var attachId   = this.model.get('documentocontabId')   || '';
@@ -63,17 +64,25 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                     '<span class="qr-status" style="font-size:13px;color:#888;"></span>' +
                 '</div>' +
 
+                /* Camera overlay — A4 portrait guide */
                 '<div class="qr-camera-wrap" style="display:none;position:relative;max-width:420px;' +
                 'border-radius:10px;overflow:hidden;background:#000;">' +
                     '<video class="qr-video" autoplay playsinline muted ' +
-                    'style="width:100%;display:block;max-height:300px;object-fit:cover;"></video>' +
+                    'style="width:100%;display:block;max-height:70vh;object-fit:cover;"></video>' +
 
                     '<canvas class="qr-canvas" style="display:none;"></canvas>' +
 
+                    /* A4 portrait guide (ratio 1:√2 ≈ 0.707) */
                     '<div style="position:absolute;inset:0;display:flex;align-items:center;' +
                     'justify-content:center;pointer-events:none;">' +
-                        '<div style="width:65%;aspect-ratio:1;border:3px solid rgba(74,144,217,.9);' +
-                        'border-radius:8px;box-shadow:0 0 0 2000px rgba(0,0,0,.35);"></div>' +
+                        '<div style="width:72%;aspect-ratio:210/297;' +
+                        'border:2px solid rgba(74,144,217,.85);border-radius:4px;' +
+                        'box-shadow:0 0 0 2000px rgba(0,0,0,.35);' +
+                        'display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px;">' +
+                            '<span style="font-size:11px;color:rgba(255,255,255,.8);' +
+                            'background:rgba(0,0,0,.4);border-radius:4px;padding:2px 7px;">' +
+                            'Enquadra a fatura aqui</span>' +
+                        '</div>' +
                     '</div>' +
 
                     '<div class="qr-countdown" style="position:absolute;top:10px;right:12px;' +
@@ -109,15 +118,15 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             }.bind(this));
         },
 
-        /* ── Scan flow ──────────────────────────────────────── */
+        /* ── Scan flow ───────────────────────────────────────── */
 
         _startScan: function () {
             this._clearError();
-            this._setStatus('A carregar scanner...');
+            this._setStatus('A carregar...');
             this._setBtnState('loading');
 
             var self = this;
-            this._loadQrScanner(function () {
+            this._loadScript(QR_SCANNER_URL, 'QrScanner', function () {
                 self._scanning = true;
                 self._openCameraUI();
             });
@@ -134,7 +143,6 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             this._setBtnState('scanning');
             this._setStatus('Aponta a camera ao QR code da fatura...');
 
-            /* Set worker path before instantiating */
             window.QrScanner.WORKER_PATH = QR_WORKER_URL;
 
             this._qrScanner = new window.QrScanner(
@@ -149,16 +157,9 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                         return;
                     }
 
-                    /* QR AT detected — stop countdown, fill fields, capture frame */
                     if (self._countTimer) { clearInterval(self._countTimer); self._countTimer = null; }
                     self._applyParsed(parsed);
-
-                    canvas.width  = video.videoWidth  || 640;
-                    canvas.height = video.videoHeight || 480;
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-                    self._qrScanner.stop();
-                    self._captureAndUpload(canvas, true);
+                    self._captureFrame(canvas, ctx, video, true);
                 },
                 {
                     returnDetailedScanResult: true,
@@ -182,28 +183,60 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 if (remaining <= 0) {
                     clearInterval(self._countTimer);
                     self._countTimer = null;
-                    self._doManualCapture(canvas, ctx, video);
+                    self._captureFrame(canvas, ctx, video, false);
                 }
             }, 1000);
 
             /* Manual capture button */
             this.$el.find('.qr-btn-capture').off('click').on('click', function () {
                 if (self._countTimer) { clearInterval(self._countTimer); self._countTimer = null; }
-                self._doManualCapture(canvas, ctx, video);
+                self._captureFrame(canvas, ctx, video, false);
             });
         },
 
-        _doManualCapture: function (canvas, ctx, video) {
+        _captureFrame: function (canvas, ctx, video, qrSuccess) {
             if (this._qrScanner) { this._qrScanner.stop(); }
+
+            canvas.width  = video.videoWidth  || 1280;
+            canvas.height = video.videoHeight || 720;
             if (video.readyState >= video.HAVE_ENOUGH_DATA) {
-                canvas.width  = video.videoWidth  || 640;
-                canvas.height = video.videoHeight || 480;
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             }
-            this._captureAndUpload(canvas, false);
+
+            this._stopCamera();
+            this._setStatus('A converter para PDF...');
+            this._convertToPdfAndUpload(canvas, qrSuccess);
         },
 
-        /* ── QR AT parser ───────────────────────────────────── */
+        /* ── PDF conversion ──────────────────────────────────── */
+
+        _convertToPdfAndUpload: function (canvas, qrSuccess) {
+            var self = this;
+
+            this._loadScript(JSPDF_URL, 'jspdf', function () {
+                var JsPDF   = window.jspdf.jsPDF;
+                var imgData = canvas.toDataURL('image/jpeg', 0.88);
+
+                /* Fit image into A4 with 8mm margin, portrait */
+                var a4W = 210, a4H = 297, margin = 8;
+                var maxW = a4W - 2 * margin;
+                var maxH = a4H - 2 * margin;
+                var ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
+                var fitW  = canvas.width  * ratio;
+                var fitH  = canvas.height * ratio;
+                var x     = (a4W - fitW) / 2;
+                var y     = (a4H - fitH) / 2;
+
+                var pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                pdf.addImage(imgData, 'JPEG', x, y, fitW, fitH);
+
+                var pdfBlob = pdf.output('blob');
+                self._setStatus('A enviar PDF...');
+                self._uploadBlob(pdfBlob, qrSuccess);
+            });
+        },
+
+        /* ── QR AT parser ────────────────────────────────────── */
 
         _parseQrAT: function (raw) {
             if (!raw) { return null; }
@@ -218,7 +251,6 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
             var nif   = fields['A'] || '';
             var total = parseFloat(fields['O'] || '0') || 0;
-
             var pairs = [
                 { base: parseFloat(fields['I2'] || '0'), iva: parseFloat(fields['I3'] || '0') },
                 { base: parseFloat(fields['I4'] || '0'), iva: parseFloat(fields['I5'] || '0') },
@@ -227,7 +259,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             var best = pairs.reduce(function (a, b) { return b.base > a.base ? b : a; }, { base: 0, iva: 0 });
 
             return {
-                nif:     nif,
+                nif:      nif,
                 subtotal: best.base,
                 iva:      best.iva,
                 taxaiva:  best.base > 0 ? Math.round((best.iva / best.base) * 100) : 0,
@@ -241,38 +273,22 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             this.model.set('iva',          p.iva);
             this.model.set('taxaiva',      p.taxaiva);
             this.model.set('total',        p.total);
-
             this._setStatus(
-                'QR AT: NIF ' + p.nif +
-                ' | Total ' + p.total.toFixed(2) + '€' +
-                ' | IVA ' + p.taxaiva + '%'
+                'QR AT: NIF ' + p.nif + ' | Total ' + p.total.toFixed(2) + '€ | IVA ' + p.taxaiva + '%'
             );
         },
 
-        /* ── Upload ─────────────────────────────────────────── */
-
-        _captureAndUpload: function (canvas, qrSuccess) {
-            var self = this;
-            canvas.toBlob(function (blob) {
-                self._stopCamera();
-                if (!blob) {
-                    self._setBtnState(qrSuccess ? 'done' : 'idle');
-                    return;
-                }
-                self._setStatus('A enviar imagem...');
-                self._uploadBlob(blob, qrSuccess);
-            }, 'image/jpeg', 0.88);
-        },
+        /* ── Upload ──────────────────────────────────────────── */
 
         _uploadBlob: function (blob, qrSuccess) {
             var self     = this;
-            var fileName = 'fatura-' + Date.now() + '.jpg';
+            var fileName = 'fatura-' + Date.now() + '.pdf';
             var reader   = new FileReader();
 
             reader.onload = function (e) {
                 var payload = {
                     name:       fileName,
-                    type:       'image/jpeg',
+                    type:       'application/pdf',
                     parentType: 'Contabdoc',
                     field:      'documentocontab',
                     role:       'Attachment',
@@ -288,12 +304,13 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                         }
                         self._setBtnState(qrSuccess ? 'done' : 'idle');
                         if (!qrSuccess) {
-                            self._setStatus('Sem QR detetado — preenche os campos manualmente');
+                            self._setStatus('Sem QR AT — PDF guardado, preenche manualmente');
                         }
                     })
-                    .catch(function () {
+                    .catch(function (err) {
+                        console.error('[QR] upload error', err);
                         self._setBtnState(qrSuccess ? 'done' : 'idle');
-                        self._setStatus('Erro ao enviar imagem');
+                        self._setStatus('Erro ao enviar PDF');
                     });
             };
 
@@ -308,15 +325,13 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             ).show();
         },
 
-        /* ── UI helpers ─────────────────────────────────────── */
+        /* ── UI helpers ──────────────────────────────────────── */
 
         _setBtnState: function (state) {
             var $btn   = this.$el.find('.qr-btn-scan');
             var $label = this.$el.find('.qr-btn-label');
             var $icon  = $btn.find('.fas');
-
             $btn.prop('disabled', state === 'loading' || state === 'scanning');
-
             if (state === 'idle') {
                 $icon.attr('class', 'fas fa-camera').css('font-size', '15px');
                 $label.text('Scan / Foto');
@@ -339,42 +354,35 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         _showError:  function (msg) { this.$el.find('.qr-error').text(msg).show(); },
         _clearError: function ()    { this.$el.find('.qr-error').hide().text(''); },
 
-        /* ── Camera teardown ────────────────────────────────── */
+        /* ── Camera teardown ─────────────────────────────────── */
 
         _stopCamera: function () {
             this._scanning = false;
-
             if (this._countTimer) { clearInterval(this._countTimer); this._countTimer = null; }
-
             if (this._qrScanner) {
                 try { this._qrScanner.stop(); this._qrScanner.destroy(); } catch (e) {}
                 this._qrScanner = null;
             }
-
             this.$el.find('.qr-camera-wrap').hide();
             this._setBtnState(this.model.get('documentocontabId') ? 'done' : 'idle');
         },
 
-        /* ── Library loader ─────────────────────────────────── */
+        /* ── Generic script loader with AMD suppression ──────── */
 
-        _loadQrScanner: function (cb) {
-            if (window.QrScanner) { cb(); return; }
-
+        _loadScript: function (url, globalName, cb) {
+            if (window[globalName]) { cb(); return; }
             var self = this;
-            /* Suppress AMD so the UMD build assigns to window.QrScanner
-               instead of calling define() (which EspoCRM's RequireJS would intercept) */
             var savedDefine = window.define;
             window.define = undefined;
-
             var script = document.createElement('script');
-            script.src = QR_SCANNER_URL;
+            script.src = url;
             script.onload = function () {
                 window.define = savedDefine;
                 cb();
             };
             script.onerror = function () {
                 window.define = savedDefine;
-                self._showError('Erro ao carregar QrScanner.');
+                self._showError('Erro ao carregar ' + globalName + '.');
                 self._setBtnState('idle');
             };
             document.head.appendChild(script);
