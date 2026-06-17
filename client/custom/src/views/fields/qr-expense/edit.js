@@ -4,7 +4,8 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
     var BASE_PATH = (function () {
         return window.location.origin + window.location.pathname.split('#')[0].replace(/\/+$/, '');
     }());
-    var JSQR_URL = BASE_PATH + '/client/custom/lib/jsqr.min.js';
+    var QR_SCANNER_URL = BASE_PATH + '/client/custom/lib/qr-scanner.umd.min.js';
+    var QR_WORKER_URL  = BASE_PATH + '/client/custom/lib/qr-scanner-worker.min.js';
 
     return Dep.extend({
 
@@ -12,16 +13,13 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
         setup: function () {
             Dep.prototype.setup.call(this);
-            this._scanning   = false;
-            this._stream     = null;
-            this._rafId      = null;
-            this._cdnTimer   = null;
-            this._countTimer = null;
+            this._scanning    = false;
+            this._qrScanner   = null;
+            this._countTimer  = null;
         },
 
         afterRender: function () {
             Dep.prototype.afterRender.call(this);
-
             if (this.mode === 'detail' || this.mode === 'list') {
                 this._buildDetailUI();
             } else {
@@ -29,26 +27,30 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             }
         },
 
+        /* ── Detail mode ────────────────────────────────────── */
+
         _buildDetailUI: function () {
             var attachId   = this.model.get('documentocontabId')   || '';
             var attachName = this.model.get('documentocontabName') || '';
-
             var html = attachId
                 ? '<span class="fas fa-paperclip" style="color:#4a90d9;margin-right:5px;"></span>' +
-                  '<a href="' + BASE_PATH + '/?entryPoint=download&id=' + attachId + '" target="_blank">' + attachName + '</a>'
+                  '<a href="' + BASE_PATH + '/?entryPoint=download&id=' + attachId +
+                  '" target="_blank">' + attachName + '</a>'
                 : '<span style="color:#aaa;">Sem documento</span>';
-
             this.$el.find('.qr-expense-root').html(html);
         },
 
+        /* ── Edit mode ──────────────────────────────────────── */
+
         _buildUI: function () {
-            var attachName = this.model.get('documentocontabName') || '';
             var attachId   = this.model.get('documentocontabId')   || '';
+            var attachName = this.model.get('documentocontabName') || '';
 
             var attachHtml = attachId
                 ? '<div class="qr-attach" style="margin-top:6px;font-size:13px;color:#555;">' +
                   '<span class="fas fa-paperclip" style="color:#4a90d9;margin-right:5px;"></span>' +
-                  '<a href="' + BASE_PATH + '/?entryPoint=download&id=' + attachId + '" target="_blank">' + attachName + '</a></div>'
+                  '<a href="' + BASE_PATH + '/?entryPoint=download&id=' + attachId +
+                  '" target="_blank">' + attachName + '</a></div>'
                 : '<div class="qr-attach" style="display:none;margin-top:6px;font-size:13px;color:#555;"></div>';
 
             var html =
@@ -70,8 +72,8 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
                     '<div style="position:absolute;inset:0;display:flex;align-items:center;' +
                     'justify-content:center;pointer-events:none;">' +
-                        '<div style="width:55%;aspect-ratio:1;border:3px solid rgba(74,144,217,.9);' +
-                        'border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.4);"></div>' +
+                        '<div style="width:65%;aspect-ratio:1;border:3px solid rgba(74,144,217,.9);' +
+                        'border-radius:8px;box-shadow:0 0 0 2000px rgba(0,0,0,.35);"></div>' +
                     '</div>' +
 
                     '<div class="qr-countdown" style="position:absolute;top:10px;right:12px;' +
@@ -85,8 +87,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                     'display:flex;justify-content:center;gap:10px;">' +
                         '<button class="btn qr-btn-cancel" type="button" ' +
                         'style="background:rgba(0,0,0,.55);color:#fff;border:none;' +
-                        'border-radius:20px;padding:5px 18px;font-size:12px;">' +
-                        'Cancelar</button>' +
+                        'border-radius:20px;padding:5px 18px;font-size:12px;">Cancelar</button>' +
                         '<button class="btn qr-btn-capture" type="button" ' +
                         'style="background:rgba(74,144,217,.85);color:#fff;border:none;' +
                         'border-radius:20px;padding:5px 18px;font-size:12px;">' +
@@ -108,32 +109,22 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             }.bind(this));
         },
 
+        /* ── Scan flow ──────────────────────────────────────── */
+
         _startScan: function () {
             this._clearError();
-
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                this._showError('Camera nao suportada. Usa HTTPS e um browser moderno.');
-                return;
-            }
-
-            this._setStatus('A carregar camera...');
+            this._setStatus('A carregar scanner...');
             this._setBtnState('loading');
 
-            this._loadJsQR(function () {
-                navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }
-                }).then(function (stream) {
-                    this._stream = stream;
-                    this._scanning = true;
-                    this._openCameraUI(stream);
-                }.bind(this)).catch(function (err) {
-                    this._setBtnState('idle');
-                    this._showError('Sem acesso a camera: ' + err.message);
-                }.bind(this));
-            }.bind(this));
+            var self = this;
+            this._loadQrScanner(function () {
+                self._scanning = true;
+                self._openCameraUI();
+            });
         },
 
-        _openCameraUI: function (stream) {
+        _openCameraUI: function () {
+            var self   = this;
             var $wrap  = this.$el.find('.qr-camera-wrap');
             var video  = this.$el.find('.qr-video')[0];
             var canvas = this.$el.find('.qr-canvas')[0];
@@ -141,106 +132,98 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
             $wrap.show();
             this._setBtnState('scanning');
-            this._setStatus('');
+            this._setStatus('Aponta a camera ao QR code da fatura...');
 
-            video.srcObject = stream;
-            video.play();
+            /* Set worker path before instantiating */
+            window.QrScanner.WORKER_PATH = QR_WORKER_URL;
 
+            this._qrScanner = new window.QrScanner(
+                video,
+                function (result) {
+                    var raw = (result && result.data) ? result.data : String(result);
+                    console.log('[QR] raw:', raw.substring(0, 200));
+
+                    var parsed = self._parseQrAT(raw);
+                    if (!parsed) {
+                        self._setStatus('QR lido mas nao e formato AT...');
+                        return;
+                    }
+
+                    /* QR AT detected — stop countdown, fill fields, capture frame */
+                    if (self._countTimer) { clearInterval(self._countTimer); self._countTimer = null; }
+                    self._applyParsed(parsed);
+
+                    canvas.width  = video.videoWidth  || 640;
+                    canvas.height = video.videoHeight || 480;
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                    self._qrScanner.stop();
+                    self._captureAndUpload(canvas, true);
+                },
+                {
+                    returnDetailedScanResult: true,
+                    preferredCamera:          'environment',
+                    highlightScanRegion:      false,
+                    highlightCodeOutline:     false
+                }
+            );
+
+            this._qrScanner.start().catch(function (err) {
+                self._stopCamera();
+                self._showError('Sem acesso a camera: ' + (err.message || err));
+            });
+
+            /* Countdown */
             var remaining = SCAN_TIMEOUT_SEC;
             var $secs = this.$el.find('.qr-secs');
-
             this._countTimer = setInterval(function () {
                 remaining -= 1;
                 $secs.text(remaining);
-
                 if (remaining <= 0) {
-                    clearInterval(this._countTimer);
-                    this._onTimeout(canvas, ctx, video);
+                    clearInterval(self._countTimer);
+                    self._countTimer = null;
+                    self._doManualCapture(canvas, ctx, video);
                 }
-            }.bind(this), 1000);
+            }, 1000);
 
+            /* Manual capture button */
             this.$el.find('.qr-btn-capture').off('click').on('click', function () {
                 if (self._countTimer) { clearInterval(self._countTimer); self._countTimer = null; }
-                self._onTimeout(canvas, ctx, video);
+                self._doManualCapture(canvas, ctx, video);
             });
-
-            var self = this;
-            var lastScanTime = 0;
-            var SCAN_INTERVAL = 200; // scan 5x/s instead of 60x/s
-
-            this._setStatus('Aponta a camera ao QR code da fatura...');
-
-            var tick = function (now) {
-                if (!self._scanning) { return; }
-
-                if (now - lastScanTime >= SCAN_INTERVAL &&
-                    video.readyState === video.HAVE_ENOUGH_DATA &&
-                    video.videoWidth > 0) {
-
-                    lastScanTime = now;
-                    canvas.width  = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-                    var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    var code    = window.jsQR(imgData.data, imgData.width, imgData.height, {
-                        inversionAttempts: 'dontInvert'
-                    });
-
-                    if (code && code.data) {
-                        console.log('[QR] raw:', code.data.substring(0, 200));
-                        var parsed = self._parseQrAT(code.data);
-                        if (parsed) {
-                            clearInterval(self._countTimer);
-                            self._applyParsed(parsed);
-                            self._captureAndUpload(canvas, true);
-                            return;
-                        } else {
-                            self._setStatus('QR lido mas nao e formato AT...');
-                        }
-                    }
-                }
-
-                self._rafId = requestAnimationFrame(tick);
-            };
-
-            this._rafId = requestAnimationFrame(function (ts) { tick(ts || 0); });
         },
 
-        _onTimeout: function (canvas, ctx, video) {
+        _doManualCapture: function (canvas, ctx, video) {
+            if (this._qrScanner) { this._qrScanner.stop(); }
             if (video.readyState >= video.HAVE_ENOUGH_DATA) {
-                canvas.width  = video.videoWidth;
-                canvas.height = video.videoHeight;
+                canvas.width  = video.videoWidth  || 640;
+                canvas.height = video.videoHeight || 480;
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             }
-
             this._captureAndUpload(canvas, false);
         },
+
+        /* ── QR AT parser ───────────────────────────────────── */
 
         _parseQrAT: function (raw) {
             if (!raw) { return null; }
             raw = raw.replace(/[\r\n]/g, '');
-            if (raw.indexOf('A:') === -1 || raw.indexOf('O:') === -1) {
-                return null;
-            }
+            if (raw.indexOf('A:') === -1 || raw.indexOf('O:') === -1) { return null; }
 
             var fields = {};
             raw.split('*').forEach(function (pair) {
                 var idx = pair.indexOf(':');
-                if (idx > -1) {
-                    fields[pair.substring(0, idx)] = pair.substring(idx + 1);
-                }
+                if (idx > -1) { fields[pair.substring(0, idx)] = pair.substring(idx + 1); }
             });
 
-            var nif    = fields['A'] || '';
-            var total  = parseFloat(fields['O'] || '0') || 0;
+            var nif   = fields['A'] || '';
+            var total = parseFloat(fields['O'] || '0') || 0;
 
             var pairs = [
                 { base: parseFloat(fields['I2'] || '0'), iva: parseFloat(fields['I3'] || '0') },
                 { base: parseFloat(fields['I4'] || '0'), iva: parseFloat(fields['I5'] || '0') },
                 { base: parseFloat(fields['I6'] || '0'), iva: parseFloat(fields['I7'] || '0') }
             ];
-
             var best = pairs.reduce(function (a, b) { return b.base > a.base ? b : a; }, { base: 0, iva: 0 });
 
             return {
@@ -266,17 +249,16 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             );
         },
 
+        /* ── Upload ─────────────────────────────────────────── */
+
         _captureAndUpload: function (canvas, qrSuccess) {
             var self = this;
-
             canvas.toBlob(function (blob) {
                 self._stopCamera();
-
                 if (!blob) {
                     self._setBtnState(qrSuccess ? 'done' : 'idle');
                     return;
                 }
-
                 self._setStatus('A enviar imagem...');
                 self._uploadBlob(blob, qrSuccess);
             }, 'image/jpeg', 0.88);
@@ -304,7 +286,6 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                             self.model.set('documentocontabName', resp.name || fileName);
                             self._updateAttachLine(resp.id, resp.name || fileName);
                         }
-
                         self._setBtnState(qrSuccess ? 'done' : 'idle');
                         if (!qrSuccess) {
                             self._setStatus('Sem QR detetado — preenche os campos manualmente');
@@ -320,12 +301,14 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         },
 
         _updateAttachLine: function (id, name) {
-            var $a = this.$el.find('.qr-attach');
-            $a.html(
+            this.$el.find('.qr-attach').html(
                 '<span class="fas fa-paperclip" style="color:#4a90d9;margin-right:5px;"></span>' +
-                '<a href="' + BASE_PATH + '/?entryPoint=download&id=' + id + '" target="_blank">' + name + '</a>'
+                '<a href="' + BASE_PATH + '/?entryPoint=download&id=' + id +
+                '" target="_blank">' + name + '</a>'
             ).show();
         },
+
+        /* ── UI helpers ─────────────────────────────────────── */
 
         _setBtnState: function (state) {
             var $btn   = this.$el.find('.qr-btn-scan');
@@ -352,54 +335,39 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             }
         },
 
-        _setStatus: function (msg) {
-            this.$el.find('.qr-status').text(msg);
-        },
+        _setStatus: function (msg) { this.$el.find('.qr-status').text(msg); },
+        _showError:  function (msg) { this.$el.find('.qr-error').text(msg).show(); },
+        _clearError: function ()    { this.$el.find('.qr-error').hide().text(''); },
 
-        _showError: function (msg) {
-            this.$el.find('.qr-error').text(msg).show();
-        },
-
-        _clearError: function () {
-            this.$el.find('.qr-error').hide().text('');
-        },
+        /* ── Camera teardown ────────────────────────────────── */
 
         _stopCamera: function () {
             this._scanning = false;
 
-            if (this._rafId) {
-                cancelAnimationFrame(this._rafId);
-                this._rafId = null;
-            }
+            if (this._countTimer) { clearInterval(this._countTimer); this._countTimer = null; }
 
-            if (this._countTimer) {
-                clearInterval(this._countTimer);
-                this._countTimer = null;
+            if (this._qrScanner) {
+                try { this._qrScanner.stop(); this._qrScanner.destroy(); } catch (e) {}
+                this._qrScanner = null;
             }
-
-            if (this._stream) {
-                this._stream.getTracks().forEach(function (t) { t.stop(); });
-                this._stream = null;
-            }
-
-            var video = this.$el.find('.qr-video')[0];
-            if (video) { video.srcObject = null; }
 
             this.$el.find('.qr-camera-wrap').hide();
             this._setBtnState(this.model.get('documentocontabId') ? 'done' : 'idle');
         },
 
-        _loadJsQR: function (cb) {
-            if (window.jsQR) { cb(); return; }
+        /* ── Library loader ─────────────────────────────────── */
 
-            var script  = document.createElement('script');
-            script.src  = JSQR_URL;
+        _loadQrScanner: function (cb) {
+            if (window.QrScanner) { cb(); return; }
+
+            var self   = this;
+            var script = document.createElement('script');
+            script.src = QR_SCANNER_URL;
             script.onload  = cb;
             script.onerror = function () {
-                this._showError('Erro ao carregar jsQR.');
-                this._setBtnState('idle');
-            }.bind(this);
-
+                self._showError('Erro ao carregar QrScanner.');
+                self._setBtnState('idle');
+            };
             document.head.appendChild(script);
         },
 
