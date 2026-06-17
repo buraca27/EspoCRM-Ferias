@@ -87,6 +87,10 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                         'style="background:rgba(0,0,0,.55);color:#fff;border:none;' +
                         'border-radius:20px;padding:5px 18px;font-size:12px;">' +
                         'Cancelar</button>' +
+                        '<button class="btn qr-btn-capture" type="button" ' +
+                        'style="background:rgba(74,144,217,.85);color:#fff;border:none;' +
+                        'border-radius:20px;padding:5px 18px;font-size:12px;">' +
+                        '<span class="fas fa-camera" style="margin-right:5px;"></span>Capturar foto</button>' +
                     '</div>' +
                 '</div>' +
 
@@ -155,6 +159,11 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 }
             }.bind(this), 1000);
 
+            this.$el.find('.qr-btn-capture').off('click').on('click', function () {
+                if (self._countTimer) { clearInterval(self._countTimer); self._countTimer = null; }
+                self._onTimeout(canvas, ctx, video);
+            });
+
             var self = this;
             var tick = function () {
                 if (!self._scanning) { return; }
@@ -170,13 +179,18 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                     });
 
                     if (code && code.data) {
+                        console.log('[QR] raw:', code.data.substring(0, 120));
                         var parsed = self._parseQrAT(code.data);
                         if (parsed) {
                             clearInterval(self._countTimer);
                             self._applyParsed(parsed);
                             self._captureAndUpload(canvas, true);
                             return;
+                        } else {
+                            self._setStatus('QR lido (formato desconhecido)...');
                         }
+                    } else {
+                        self._setStatus('A procurar QR AT...');
                     }
                 }
 
