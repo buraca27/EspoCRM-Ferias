@@ -1,0 +1,9 @@
+{
+    "fields": {
+        "qrScanner": {
+            "type": "qrExpense",
+            "notStorable": true,
+            "label": "Scan Fatura"
+        }
+    }
+}
