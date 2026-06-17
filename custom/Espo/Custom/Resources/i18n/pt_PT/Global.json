@@ -1,0 +1,8 @@
+{
+    "fields": {
+        "qrExpense": "QR Fatura"
+    },
+    "fieldTypes": {
+        "qrExpense": "QR Fatura"
+    }
+}
