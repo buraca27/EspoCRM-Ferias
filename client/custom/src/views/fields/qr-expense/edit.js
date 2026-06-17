@@ -259,15 +259,16 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             var reader   = new FileReader();
 
             reader.onload = function (e) {
-                var payload = JSON.stringify({
+                var payload = {
                     name:       fileName,
                     type:       'image/jpeg',
                     parentType: 'Contabdoc',
+                    field:      'documentocontab',
                     role:       'Attachment',
                     file:       e.target.result
-                });
+                };
 
-                Espo.Ajax.postRequest('Attachment', JSON.parse(payload))
+                Espo.Ajax.postRequest('Attachment', payload)
                     .then(function (resp) {
                         if (resp && resp.id) {
                             self.model.set('documentocontabId',   resp.id);
