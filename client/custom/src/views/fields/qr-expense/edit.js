@@ -1,6 +1,6 @@
 define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (Dep) {
 
-    var SCAN_TIMEOUT_SEC = 15;
+    var SCAN_TIMEOUT_SEC = 30;
     var BASE_PATH = (function () {
         return window.location.origin + window.location.pathname.split('#')[0].replace(/\/+$/, '');
     }());
@@ -166,7 +166,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
                     var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                     var code    = window.jsQR(imgData.data, imgData.width, imgData.height, {
-                        inversionAttempts: 'dontInvert'
+                        inversionAttempts: 'attemptBoth'
                     });
 
                     if (code && code.data) {
@@ -198,7 +198,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
         _parseQrAT: function (raw) {
             if (!raw) { return null; }
-            raw = raw.replace(/[\r\n\s]/g, '');
+            raw = raw.replace(/[\r\n]/g, '');
             if (raw.indexOf('A:') === -1 || raw.indexOf('O:') === -1) {
                 return null;
             }
@@ -237,6 +237,12 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             this.model.set('iva',          p.iva);
             this.model.set('taxaiva',      p.taxaiva);
             this.model.set('total',        p.total);
+
+            this._setStatus(
+                'QR AT: NIF ' + p.nif +
+                ' | Total ' + p.total.toFixed(2) + '€' +
+                ' | IVA ' + p.taxaiva + '%'
+            );
         },
 
         _captureAndUpload: function (canvas, qrSuccess) {
@@ -279,11 +285,13 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                         }
 
                         self._setBtnState(qrSuccess ? 'done' : 'idle');
-                        self._setStatus(qrSuccess ? 'QR lido com sucesso' : 'Foto guardada');
+                        if (!qrSuccess) {
+                            self._setStatus('Sem QR detetado — preenche os campos manualmente');
+                        }
                     })
                     .catch(function () {
                         self._setBtnState(qrSuccess ? 'done' : 'idle');
-                        self._setStatus('Imagem nao enviada');
+                        self._setStatus('Erro ao enviar imagem');
                     });
             };
 
