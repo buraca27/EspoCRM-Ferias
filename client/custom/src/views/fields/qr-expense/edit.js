@@ -1,6 +1,5 @@
 define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (Dep) {
 
-    var SCAN_TIMEOUT_SEC = 25;
     var BASE_PATH = (function () {
         return window.location.origin + window.location.pathname.split('#')[0].replace(/\/+$/, '');
     }());
@@ -14,11 +13,6 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
         setup: function () {
             Dep.prototype.setup.call(this);
-            this._scanning   = false;
-            this._qrScanner  = null;
-            this._countTimer = null;
-            this._qrSuccess  = false;
-            this._phase      = 1; // 1 = QR scan, 2 = receipt capture
         },
 
         afterRender: function () {
@@ -56,223 +50,114 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                   '" target="_blank">' + attachName + '</a></div>'
                 : '<div class="qr-attach" style="display:none;margin-top:6px;font-size:13px;color:#555;"></div>';
 
+            /* File input — no capture attr so browser shows camera+gallery sheet */
             var html =
                 '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">' +
-                    '<button class="btn btn-default qr-btn-scan" type="button" ' +
-                    'style="display:flex;align-items:center;gap:6px;padding:7px 14px;">' +
-                    '<span class="fas fa-camera" style="font-size:15px;"></span>' +
-                    '<span class="qr-btn-label">Scan / Foto</span>' +
-                    '</button>' +
+                    '<label class="btn btn-default qr-btn-scan" ' +
+                    'style="display:flex;align-items:center;gap:6px;padding:7px 14px;cursor:pointer;margin:0;">' +
+                        '<span class="fas fa-camera" style="font-size:15px;"></span>' +
+                        '<span class="qr-btn-label">Foto da Fatura</span>' +
+                        '<input type="file" accept="image/*" class="qr-file-input" ' +
+                        'style="display:none;position:absolute;width:0;height:0;">' +
+                    '</label>' +
                     '<span class="qr-status" style="font-size:13px;color:#888;"></span>' +
                 '</div>' +
-
-                '<div class="qr-camera-wrap" style="display:none;position:relative;max-width:420px;' +
-                'border-radius:10px;overflow:hidden;background:#000;">' +
-                    '<video class="qr-video" autoplay playsinline muted ' +
-                    'style="width:100%;display:block;max-height:70vh;object-fit:cover;"></video>' +
-                    '<canvas class="qr-canvas" style="display:none;"></canvas>' +
-
-                    /* Overlay — changes shape between phases */
-                    '<div style="position:absolute;inset:0;display:flex;align-items:center;' +
-                    'justify-content:center;pointer-events:none;">' +
-                        '<div class="qr-overlay" style="border:2px solid rgba(74,144,217,.9);' +
-                        'border-radius:8px;box-shadow:0 0 0 2000px rgba(0,0,0,.4);' +
-                        'width:65%;aspect-ratio:1;display:flex;align-items:flex-end;' +
-                        'justify-content:center;padding-bottom:6px;transition:all .4s ease;">' +
-                            '<span class="qr-overlay-hint" style="font-size:11px;color:rgba(255,255,255,.9);' +
-                            'background:rgba(0,0,0,.5);border-radius:4px;padding:2px 8px;">' +
-                            'Aponta ao QR code da fatura</span>' +
-                        '</div>' +
-                    '</div>' +
-
-                    /* Countdown — only visible in phase 1 */
-                    '<div class="qr-countdown" style="position:absolute;top:10px;right:12px;' +
-                    'background:rgba(0,0,0,.6);color:#fff;border-radius:20px;' +
-                    'padding:3px 11px;font-size:13px;font-weight:600;">' +
-                        '<span class="fas fa-clock" style="margin-right:4px;font-size:11px;"></span>' +
-                        '<span class="qr-secs">' + SCAN_TIMEOUT_SEC + '</span>s' +
-                    '</div>' +
-
-                    /* Phase badge */
-                    '<div class="qr-phase-badge" style="position:absolute;top:10px;left:12px;' +
-                    'background:rgba(0,0,0,.6);color:#fff;border-radius:20px;' +
-                    'padding:3px 11px;font-size:12px;font-weight:600;">Passo 1/2</div>' +
-
-                    '<div style="position:absolute;bottom:10px;left:0;right:0;' +
-                    'display:flex;justify-content:center;gap:10px;">' +
-                        '<button class="btn qr-btn-cancel" type="button" ' +
-                        'style="background:rgba(0,0,0,.55);color:#fff;border:none;' +
-                        'border-radius:20px;padding:5px 16px;font-size:12px;">Cancelar</button>' +
-                        '<button class="btn qr-btn-action" type="button" ' +
-                        'style="background:rgba(100,100,100,.7);color:#fff;border:none;' +
-                        'border-radius:20px;padding:5px 16px;font-size:12px;">' +
-                        'Sem QR / saltar</button>' +
-                    '</div>' +
-                '</div>' +
-
                 attachHtml +
-                '<div class="qr-error" style="display:none;color:#e74c3c;font-size:13px;margin-top:5px;"></div>';
+                '<div class="qr-error" style="display:none;color:#e74c3c;font-size:13px;margin-top:5px;"></div>' +
+                /* Preview thumbnail */
+                '<div class="qr-preview" style="display:none;margin-top:8px;">' +
+                    '<img class="qr-preview-img" style="max-width:120px;max-height:160px;' +
+                    'border-radius:6px;border:1px solid #ddd;object-fit:cover;">' +
+                '</div>';
 
             this.$el.find('.qr-expense-root').html(html);
 
-            this.$el.find('.qr-btn-scan').on('click', function () {
-                this._startScan();
+            this.$el.find('.qr-file-input').on('change', function (e) {
+                var file = e.target.files && e.target.files[0];
+                if (file) { this._processImage(file); }
+                /* Reset so same file can be re-selected */
+                e.target.value = '';
             }.bind(this));
-
-            this.$el.find('.qr-btn-cancel').on('click', function () {
-                this._stopCamera();
-            }.bind(this));
         },
 
-        /* ── Phase management ──────────────────────────────── */
+        /* ── Main processing pipeline ──────────────────────── */
 
-        _enterPhase1: function () {
-            this._phase = 1;
-            this.$el.find('.qr-overlay').css({ 'width': '65%', 'aspect-ratio': '1' });
-            this.$el.find('.qr-overlay-hint').text('Aponta ao QR code da fatura');
-            this.$el.find('.qr-countdown').show();
-            this.$el.find('.qr-phase-badge').text('Passo 1/2');
-            this.$el.find('.qr-btn-action')
-                .css('background', 'rgba(100,100,100,.7)')
-                .text('Sem QR / saltar');
-            this._setStatus('Aponta a camera ao QR code (perto)...');
-        },
-
-        _enterPhase2: function (qrFound) {
-            this._phase     = 2;
-            this._qrSuccess = qrFound;
-            this.$el.find('.qr-countdown').hide();
-            this.$el.find('.qr-phase-badge').text('Passo 2/2');
-            this.$el.find('.qr-overlay').css({ 'width': '78%', 'aspect-ratio': '210/297' });
-
-            var hint = qrFound
-                ? 'QR lido ✓  Recua e enquadra a fatura completa'
-                : 'Enquadra a fatura completa (retrato)';
-            this.$el.find('.qr-overlay-hint').text(hint);
-
-            this.$el.find('.qr-btn-action')
-                .css('background', 'rgba(74,144,217,.85)')
-                .text('📷  Capturar fatura');
-
-            var statusMsg = qrFound
-                ? 'QR AT detetado — recua e enquadra toda a fatura, depois captura'
-                : 'Sem QR — enquadra a fatura completa e captura';
-            this._setStatus(statusMsg);
-        },
-
-        /* ── Scan flow ─────────────────────────────────────── */
-
-        _startScan: function () {
+        _processImage: function (file) {
+            var self = this;
             this._clearError();
-            this._setStatus('A carregar scanner...');
+            this._setStatus('A ler QR code...');
             this._setBtnState('loading');
-            var self = this;
+
+            /* Show thumbnail preview immediately */
+            var previewUrl = URL.createObjectURL(file);
+            this.$el.find('.qr-preview-img').attr('src', previewUrl);
+            this.$el.find('.qr-preview').show();
+
             this._loadScript(QR_SCANNER_URL, 'QrScanner', function () {
-                self._scanning = true;
-                self._openCameraUI();
+                window.QrScanner.WORKER_PATH = QR_WORKER_URL;
+
+                window.QrScanner.scanImage(file, { returnDetailedScanResult: true })
+                    .then(function (result) {
+                        var raw = (result && result.data) ? result.data : String(result);
+                        console.log('[QR] raw:', raw.substring(0, 200));
+                        var parsed = self._parseQrAT(raw);
+                        if (parsed) {
+                            self._applyParsed(parsed);
+                            self._setStatus('QR AT lido — a converter para PDF...');
+                            self._convertAndUpload(file, true);
+                        } else {
+                            self._setStatus('QR nao e formato AT — a converter para PDF...');
+                            self._convertAndUpload(file, false);
+                        }
+                    })
+                    .catch(function () {
+                        self._setStatus('Sem QR na imagem — a converter para PDF...');
+                        self._convertAndUpload(file, false);
+                    });
             });
         },
 
-        _openCameraUI: function () {
-            var self   = this;
-            var $wrap  = this.$el.find('.qr-camera-wrap');
-            var video  = this.$el.find('.qr-video')[0];
-            var canvas = this.$el.find('.qr-canvas')[0];
-            var ctx    = canvas.getContext('2d');
+        /* ── Convert image file → A4 PDF → upload ──────────── */
 
-            $wrap.show();
-            this._setBtnState('scanning');
-            this._enterPhase1();
-
-            window.QrScanner.WORKER_PATH = QR_WORKER_URL;
-
-            this._qrScanner = new window.QrScanner(
-                video,
-                function (result) {
-                    if (self._phase !== 1) { return; } // already in phase 2
-                    var raw = (result && result.data) ? result.data : String(result);
-                    console.log('[QR] raw:', raw.substring(0, 200));
-                    var parsed = self._parseQrAT(raw);
-                    if (!parsed) {
-                        self._setStatus('QR lido mas nao e formato AT — mantém...');
-                        return;
-                    }
-                    // QR found — fill fields, move to phase 2
-                    if (self._countTimer) { clearInterval(self._countTimer); self._countTimer = null; }
-                    self._applyParsed(parsed);
-                    self._enterPhase2(true);
-                },
-                {
-                    returnDetailedScanResult: true,
-                    preferredCamera:          'environment',
-                    highlightScanRegion:      false,
-                    highlightCodeOutline:     false
-                }
-            );
-
-            this._qrScanner.start().catch(function (err) {
-                self._stopCamera();
-                self._showError('Sem acesso a camera: ' + (err.message || err));
-            });
-
-            /* Phase 1 countdown */
-            var remaining = SCAN_TIMEOUT_SEC;
-            var $secs = this.$el.find('.qr-secs');
-            this._countTimer = setInterval(function () {
-                if (self._phase !== 1) { return; }
-                remaining -= 1;
-                $secs.text(remaining);
-                if (remaining <= 0) {
-                    clearInterval(self._countTimer);
-                    self._countTimer = null;
-                    self._enterPhase2(false);
-                }
-            }, 1000);
-
-            /* Action button — context-sensitive */
-            this.$el.find('.qr-btn-action').off('click').on('click', function () {
-                if (self._phase === 1) {
-                    // Skip QR scan → go to phase 2
-                    if (self._countTimer) { clearInterval(self._countTimer); self._countTimer = null; }
-                    self._enterPhase2(false);
-                } else {
-                    // Phase 2 → capture receipt
-                    self._captureReceipt(canvas, ctx, video);
-                }
-            });
-        },
-
-        _captureReceipt: function (canvas, ctx, video) {
-            if (this._qrScanner) { this._qrScanner.stop(); }
-            canvas.width  = video.videoWidth  || 1280;
-            canvas.height = video.videoHeight || 720;
-            if (video.readyState >= video.HAVE_ENOUGH_DATA) {
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            }
-            this._stopCamera();
-            this._setStatus('A converter para PDF...');
-            this._convertToPdfAndUpload(canvas, this._qrSuccess);
-        },
-
-        /* ── PDF conversion ────────────────────────────────── */
-
-        _convertToPdfAndUpload: function (canvas, qrSuccess) {
+        _convertAndUpload: function (file, qrSuccess) {
             var self = this;
+
             this._loadScript(JSPDF_URL, 'jspdf', function () {
-                var JsPDF   = window.jspdf.jsPDF;
-                var imgData = canvas.toDataURL('image/jpeg', 0.88);
-                var a4W = 210, a4H = 297, margin = 8;
-                var maxW = a4W - 2 * margin;
-                var maxH = a4H - 2 * margin;
-                var ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
-                var fitW  = canvas.width  * ratio;
-                var fitH  = canvas.height * ratio;
-                var x     = (a4W - fitW) / 2;
-                var y     = (a4H - fitH) / 2;
-                var pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-                pdf.addImage(imgData, 'JPEG', x, y, fitW, fitH);
-                self._setStatus('A enviar PDF...');
-                self._uploadBlob(pdf.output('blob'), qrSuccess);
+                var objectUrl = URL.createObjectURL(file);
+                var img = new Image();
+
+                img.onload = function () {
+                    /* Draw full-res image to canvas */
+                    var canvas = document.createElement('canvas');
+                    canvas.width  = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    canvas.getContext('2d').drawImage(img, 0, 0);
+                    URL.revokeObjectURL(objectUrl);
+
+                    /* Fit into A4 with 8mm margin */
+                    var a4W = 210, a4H = 297, margin = 8;
+                    var maxW = a4W - 2 * margin;
+                    var maxH = a4H - 2 * margin;
+                    var ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
+                    var fitW  = canvas.width  * ratio;
+                    var fitH  = canvas.height * ratio;
+
+                    var JsPDF   = window.jspdf.jsPDF;
+                    var imgData = canvas.toDataURL('image/jpeg', 0.88);
+                    var pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                    pdf.addImage(imgData, 'JPEG', (a4W - fitW) / 2, (a4H - fitH) / 2, fitW, fitH);
+
+                    self._setStatus('A enviar PDF...');
+                    self._uploadBlob(pdf.output('blob'), qrSuccess);
+                };
+
+                img.onerror = function () {
+                    URL.revokeObjectURL(objectUrl);
+                    self._showError('Nao foi possivel ler a imagem.');
+                    self._setBtnState('idle');
+                };
+
+                img.src = objectUrl;
             });
         },
 
@@ -359,41 +244,24 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             var $btn   = this.$el.find('.qr-btn-scan');
             var $label = this.$el.find('.qr-btn-label');
             var $icon  = $btn.find('.fas');
-            $btn.prop('disabled', state === 'loading' || state === 'scanning');
             if (state === 'idle') {
                 $icon.attr('class', 'fas fa-camera').css('font-size', '15px');
-                $label.text('Scan / Foto');
-                $btn.removeClass('btn-success btn-warning').addClass('btn-default');
+                $label.text('Foto da Fatura');
+                $btn.removeClass('btn-success').addClass('btn-default');
             } else if (state === 'loading') {
                 $icon.attr('class', 'fas fa-spinner fa-spin');
-                $label.text('A carregar...');
-                $btn.removeClass('btn-success btn-warning').addClass('btn-default');
-            } else if (state === 'scanning') {
-                $icon.attr('class', 'fas fa-camera').css('font-size', '15px');
-                $label.text('A ler...');
+                $label.text('A processar...');
+                $btn.removeClass('btn-success').addClass('btn-default');
             } else if (state === 'done') {
                 $icon.attr('class', 'fas fa-check');
                 $label.text('QR lido');
-                $btn.removeClass('btn-default btn-warning').addClass('btn-success');
+                $btn.removeClass('btn-default').addClass('btn-success');
             }
         },
 
         _setStatus: function (msg) { this.$el.find('.qr-status').text(msg); },
         _showError:  function (msg) { this.$el.find('.qr-error').text(msg).show(); },
         _clearError: function ()    { this.$el.find('.qr-error').hide().text(''); },
-
-        /* ── Camera teardown ───────────────────────────────── */
-
-        _stopCamera: function () {
-            this._scanning = false;
-            if (this._countTimer) { clearInterval(this._countTimer); this._countTimer = null; }
-            if (this._qrScanner) {
-                try { this._qrScanner.stop(); this._qrScanner.destroy(); } catch (e) {}
-                this._qrScanner = null;
-            }
-            this.$el.find('.qr-camera-wrap').hide();
-            this._setBtnState(this.model.get('documentocontabId') ? 'done' : 'idle');
-        },
 
         /* ── Generic loader with AMD suppression ───────────── */
 
@@ -404,18 +272,13 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             window.define = undefined;
             var script = document.createElement('script');
             script.src = url;
-            script.onload = function () { window.define = savedDefine; cb(); };
+            script.onload  = function () { window.define = savedDefine; cb(); };
             script.onerror = function () {
                 window.define = savedDefine;
                 self._showError('Erro ao carregar ' + globalName + '.');
                 self._setBtnState('idle');
             };
             document.head.appendChild(script);
-        },
-
-        onRemove: function () {
-            this._stopCamera();
-            Dep.prototype.onRemove.call(this);
         }
     });
 });
