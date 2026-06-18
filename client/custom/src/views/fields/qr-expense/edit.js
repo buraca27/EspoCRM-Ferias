@@ -22,6 +22,11 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 this._buildDetailUI();
             } else {
                 this._buildUI();
+                /* Pre-load libs so they're cached when the user takes a photo */
+                this._loadScript(QR_SCANNER_URL, 'QrScanner', function () {
+                    window.QrScanner.WORKER_PATH = QR_WORKER_URL;
+                });
+                this._loadScript(JSPDF_URL, 'jspdf', function () {});
             }
         },
 
@@ -102,6 +107,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             this._hideDupWarning();
             this._setStatus('A ler QR code...');
             this._setBtnState('loading');
+            this._setSaveDisabled(true);
 
             var objectUrl = URL.createObjectURL(file);
             this.$el.find('.qr-preview-img').attr('src', objectUrl);
@@ -115,9 +121,18 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                     var w = img.naturalWidth;
                     var h = img.naturalHeight;
 
-                    window.QrScanner.scanImage(img, {
+                    /* Downscale to max 1200px for QR scan — ZXing reads QR at low res,
+                       scanning a 12MP photo is ~10× slower than a 1.4MP crop */
+                    var MAX_QR  = 1200;
+                    var qrScale = Math.min(1, MAX_QR / Math.max(w, h));
+                    var qrC     = document.createElement('canvas');
+                    qrC.width   = Math.round(w * qrScale);
+                    qrC.height  = Math.round(h * qrScale);
+                    qrC.getContext('2d').drawImage(img, 0, 0, qrC.width, qrC.height);
+
+                    window.QrScanner.scanImage(qrC, {
                         returnDetailedScanResult: true,
-                        scanRegion: { x: 0, y: 0, width: w, height: h }
+                        scanRegion: { x: 0, y: 0, width: qrC.width, height: qrC.height }
                     })
                     .then(function (result) {
                         var raw    = (result && result.data) ? result.data : String(result);
@@ -140,6 +155,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 img.onerror = function () {
                     URL.revokeObjectURL(objectUrl);
                     self._showError('Erro ao carregar imagem.');
+                    self._setSaveDisabled(false);
                     self._setBtnState('idle');
                 };
                 img.src = objectUrl;
@@ -197,6 +213,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             this.$el.find('.qr-btn-dup-cancel').off('click').on('click', function () {
                 self._hideDupWarning();
                 URL.revokeObjectURL(objectUrl);
+                self._setSaveDisabled(false);
                 self._setBtnState('idle');
                 self._setStatus('Cancelado.');
             });
@@ -211,11 +228,15 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         _imgToPdfAndUpload: function (img, objectUrl, qrSuccess) {
             var self = this;
             this._loadScript(JSPDF_URL, 'jspdf', function () {
-                var canvas = document.createElement('canvas');
-                canvas.width  = img.naturalWidth;
-                canvas.height = img.naturalHeight;
+                /* Cap at 2000px — enough for A4 300dpi, avoids slow pixel loops on 12MP shots */
+                var MAX_PDF  = 2000;
+                var w        = img.naturalWidth, h = img.naturalHeight;
+                var pdfScale = Math.min(1, MAX_PDF / Math.max(w, h));
+                var canvas   = document.createElement('canvas');
+                canvas.width  = Math.round(w * pdfScale);
+                canvas.height = Math.round(h * pdfScale);
                 var ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 URL.revokeObjectURL(objectUrl);
 
                 /* Greyscale */
@@ -326,12 +347,14 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                         self.model.set('documentocontabName', resp.name || fileName);
                         self._updateAttachLine(resp.id, resp.name || fileName);
                     }
+                    self._setSaveDisabled(false);
                     self._setBtnState(qrSuccess ? 'done' : 'idle');
                     self._setStatus(qrSuccess
                         ? 'QR AT lido e PDF guardado'
                         : 'PDF guardado — preenche os campos manualmente');
                 }).catch(function (err) {
                     console.error('[QR] upload error', err);
+                    self._setSaveDisabled(false);
                     self._setBtnState('idle');
                     self._setStatus('Erro ao enviar PDF');
                 });
@@ -369,6 +392,10 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 $btn.css('cursor', 'default')
                     .off('click').on('click', function (e) { e.preventDefault(); });
             }
+        },
+
+        _setSaveDisabled: function (disabled) {
+            $('button[data-action="save"]').prop('disabled', disabled).toggleClass('disabled', disabled);
         },
 
         _setStatus: function (msg) { this.$el.find('.qr-status').text(msg); },
