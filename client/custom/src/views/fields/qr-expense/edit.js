@@ -159,7 +159,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 var fitW  = canvas.width  * ratio;
                 var fitH  = canvas.height * ratio;
 
-                var JsPDF   = window.jspdf.jsPDF;
+                var JsPDF   = (window.jspdf && window.jspdf.jsPDF) || window.jspdf;
                 var imgData = canvas.toDataURL('image/jpeg', 0.88);
                 var pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
                 pdf.addImage(imgData, 'JPEG', (a4W - fitW) / 2, (a4H - fitH) / 2, fitW, fitH);
@@ -271,23 +271,29 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         _showError:  function (msg) { this.$el.find('.qr-error').text(msg).show(); },
         _clearError: function ()    { this.$el.find('.qr-error').hide().text(''); },
 
-        /* ── Generic loader with AMD suppression ───────────── */
+        /* ── Library loader via RequireJS (already in EspoCRM) ─ */
 
         _loadScript: function (url, globalName, cb) {
             if (window[globalName]) { cb(); return; }
             var self = this;
-            var savedDefine = window.define;
-            window.define = undefined;
-            var script = document.createElement('script');
-            script.src = url;
-            script.onload  = function () { window.define = savedDefine; cb(); };
-            script.onerror = function () {
-                window.define = savedDefine;
-                console.error('[QR] Failed to load:', url);
-                self._showError('Erro ao carregar ' + globalName + '. URL: ' + url);
-                self._setBtnState('idle');
-            };
-            document.head.appendChild(script);
+            /* Use RequireJS directly — it handles UMD define() calls cleanly
+               without needing to suppress window.define */
+            require([url],
+                function (mod) {
+                    if (mod && !window[globalName]) { window[globalName] = mod; }
+                    if (window[globalName]) {
+                        cb();
+                    } else {
+                        self._showError('Falha ao inicializar ' + globalName + '.');
+                        self._setBtnState('idle');
+                    }
+                },
+                function (err) {
+                    console.error('[QR] RequireJS failed to load:', url, err);
+                    self._showError('Erro ao carregar ' + globalName + '. URL: ' + url);
+                    self._setBtnState('idle');
+                }
+            );
         }
     });
 });
