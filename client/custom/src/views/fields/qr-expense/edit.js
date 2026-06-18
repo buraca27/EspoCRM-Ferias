@@ -14,6 +14,8 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
         setup: function () {
             Dep.prototype.setup.call(this);
+            this._rotation    = 0;
+            this._pendingFile = null;
         },
 
         afterRender: function () {
@@ -41,6 +43,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         /* ── Edit mode ─────────────────────────────────────── */
 
         _buildUI: function () {
+            var self = this;
             var attachId   = this.model.get('documentocontabId')   || '';
             var attachName = this.model.get('documentocontabName') || '';
 
@@ -51,8 +54,8 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                   '" target="_blank">' + attachName + '</a></div>'
                 : '<div class="qr-attach" style="display:none;margin-top:6px;font-size:13px;color:#555;"></div>';
 
-            /* File input — no capture attr so browser shows camera+gallery sheet */
             var html =
+                /* Top row: camera button + status */
                 '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">' +
                     '<label class="btn btn-default qr-btn-scan" ' +
                     'style="display:flex;align-items:center;gap:6px;padding:7px 14px;cursor:pointer;margin:0;">' +
@@ -63,22 +66,83 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                     '</label>' +
                     '<span class="qr-status" style="font-size:13px;color:#888;"></span>' +
                 '</div>' +
-                attachHtml +
-                '<div class="qr-error" style="display:none;color:#e74c3c;font-size:13px;margin-top:5px;"></div>' +
-                /* Preview thumbnail */
+
+                /* Preview + rotation controls (hidden until image selected) */
                 '<div class="qr-preview" style="display:none;margin-top:8px;">' +
-                    '<img class="qr-preview-img" style="max-width:120px;max-height:160px;' +
-                    'border-radius:6px;border:1px solid #ddd;object-fit:cover;">' +
-                '</div>';
+                    '<div style="display:flex;gap:10px;align-items:flex-start;">' +
+                        '<div style="width:130px;height:130px;overflow:hidden;border-radius:8px;' +
+                        'border:1px solid #ddd;background:#f5f5f5;display:flex;align-items:center;justify-content:center;flex-shrink:0;">' +
+                            '<img class="qr-preview-img" style="max-width:160px;max-height:160px;' +
+                            'object-fit:contain;transition:transform .25s;transform-origin:center;">' +
+                        '</div>' +
+                        '<div style="display:flex;flex-direction:column;gap:6px;padding-top:2px;">' +
+                            '<button type="button" class="btn btn-xs btn-default qr-btn-rotate-l" title="Rodar 90° esquerda" ' +
+                            'style="width:34px;height:30px;padding:0;display:flex;align-items:center;justify-content:center;">' +
+                                '<span class="fas fa-undo"></span>' +
+                            '</button>' +
+                            '<button type="button" class="btn btn-xs btn-default qr-btn-rotate-r" title="Rodar 90° direita" ' +
+                            'style="width:34px;height:30px;padding:0;display:flex;align-items:center;justify-content:center;">' +
+                                '<span class="fas fa-redo"></span>' +
+                            '</button>' +
+                            '<button type="button" class="btn btn-sm btn-primary qr-btn-process" ' +
+                            'style="margin-top:4px;white-space:nowrap;">' +
+                                '<span class="fas fa-cog" style="margin-right:4px;"></span>Processar' +
+                            '</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+
+                /* Duplicate warning (hidden) */
+                '<div class="qr-dup-warning" style="display:none;margin-top:10px;background:#fff8e1;' +
+                'border:1px solid #ffe082;border-radius:6px;padding:10px 12px;">' +
+                    '<div style="font-weight:600;color:#f57f17;margin-bottom:6px;font-size:13px;">' +
+                        '<span class="fas fa-exclamation-triangle" style="margin-right:5px;"></span>' +
+                        'Possível duplicado encontrado' +
+                    '</div>' +
+                    '<div class="qr-dup-list" style="font-size:12px;color:#555;margin-bottom:10px;"></div>' +
+                    '<div style="display:flex;gap:8px;">' +
+                        '<button type="button" class="btn btn-xs btn-warning qr-btn-dup-continue">Continuar mesmo assim</button>' +
+                        '<button type="button" class="btn btn-xs btn-default qr-btn-dup-cancel">Cancelar</button>' +
+                    '</div>' +
+                '</div>' +
+
+                attachHtml +
+                '<div class="qr-error" style="display:none;color:#e74c3c;font-size:13px;margin-top:5px;"></div>';
 
             this.$el.find('.qr-expense-root').html(html);
 
+            /* File selected → show preview, wait for user to click Processar */
             this.$el.find('.qr-file-input').on('change', function (e) {
                 var file = e.target.files && e.target.files[0];
-                if (file) { this._processImage(file); }
-                /* Reset so same file can be re-selected */
                 e.target.value = '';
-            }.bind(this));
+                if (!file) { return; }
+                self._pendingFile = file;
+                self._rotation    = 0;
+                self._clearError();
+                self._hideDupWarning();
+                self._setStatus('');
+                var url = URL.createObjectURL(file);
+                self.$el.find('.qr-preview-img')
+                    .css('transform', 'rotate(0deg)')
+                    .attr('src', url);
+                self.$el.find('.qr-preview').show();
+                self._setBtnState('idle');
+            });
+
+            this.$el.find('.qr-btn-rotate-l').on('click', function () { self._rotate(-90); });
+            this.$el.find('.qr-btn-rotate-r').on('click', function () { self._rotate(90); });
+
+            this.$el.find('.qr-btn-process').on('click', function () {
+                if (!self._pendingFile) { return; }
+                self._processImage(self._pendingFile);
+            });
+        },
+
+        /* ── Rotation helper ───────────────────────────────── */
+
+        _rotate: function (delta) {
+            this._rotation = (this._rotation + delta + 360) % 360;
+            this.$el.find('.qr-preview-img').css('transform', 'rotate(' + this._rotation + 'deg)');
         },
 
         /* ── Main processing pipeline ──────────────────────── */
@@ -86,18 +150,15 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         _processImage: function (file) {
             var self = this;
             this._clearError();
+            this._hideDupWarning();
             this._setStatus('A ler QR code...');
             this._setBtnState('loading');
 
             var objectUrl = URL.createObjectURL(file);
-            this.$el.find('.qr-preview-img').attr('src', objectUrl);
-            this.$el.find('.qr-preview').show();
 
             this._loadScript(QR_SCANNER_URL, 'QrScanner', function () {
                 window.QrScanner.WORKER_PATH = QR_WORKER_URL;
 
-                /* Load image first to get full dimensions,
-                   then scan the ENTIRE image (not just center crop) */
                 var img = new Image();
                 img.onload = function () {
                     var w = img.naturalWidth;
@@ -108,16 +169,17 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                         scanRegion: { x: 0, y: 0, width: w, height: h }
                     })
                     .then(function (result) {
-                        var raw = (result && result.data) ? result.data : String(result);
-                        console.log('[QR] raw:', raw.substring(0, 200));
+                        var raw    = (result && result.data) ? result.data : String(result);
                         var parsed = self._parseQrAT(raw);
+                        console.log('[QR] raw:', raw.substring(0, 200));
+
                         if (parsed) {
-                            self._applyParsed(parsed);
-                            self._setStatus('QR AT lido — a converter para PDF...');
+                            self._setStatus('QR AT lido — a verificar duplicados...');
+                            self._checkDuplicates(parsed, img, objectUrl);
                         } else {
-                            self._setStatus('QR nao e formato AT — a converter para PDF...');
+                            self._setStatus('QR não é formato AT — a converter para PDF...');
+                            self._imgToPdfAndUpload(img, objectUrl, false);
                         }
-                        self._imgToPdfAndUpload(img, objectUrl, !!parsed);
                     })
                     .catch(function () {
                         self._setStatus('Sem QR — a converter para PDF...');
@@ -133,27 +195,107 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             });
         },
 
+        /* ── Duplicate detection ───────────────────────────── */
+
+        _checkDuplicates: function (parsed, img, objectUrl) {
+            var self = this;
+            var where = [
+                { type: 'equals', attribute: 'nifdocumento', value: parsed.nif },
+                { type: 'equals', attribute: 'total',        value: parsed.total }
+            ];
+            if (this.model.id) {
+                where.push({ type: 'notEquals', attribute: 'id', value: this.model.id });
+            }
+
+            Espo.Ajax.getRequest('Contabdoc', { where: where, maxSize: 5 })
+            .then(function (resp) {
+                var list = (resp && resp.list) ? resp.list : [];
+                if (list.length > 0) {
+                    self._setStatus('');
+                    self._showDupWarning(list, parsed, img, objectUrl);
+                } else {
+                    self._applyParsed(parsed);
+                    self._setStatus('QR AT lido — a converter para PDF...');
+                    self._imgToPdfAndUpload(img, objectUrl, true);
+                }
+            })
+            .catch(function () {
+                /* If check fails, proceed anyway */
+                self._applyParsed(parsed);
+                self._setStatus('QR AT lido — a converter para PDF...');
+                self._imgToPdfAndUpload(img, objectUrl, true);
+            });
+        },
+
+        _showDupWarning: function (list, parsed, img, objectUrl) {
+            var self = this;
+            var rows = list.map(function (r) {
+                return '<div style="padding:2px 0;">• <strong>' + (r.name || r.id) + '</strong>' +
+                       (r.status ? ' — ' + r.status : '') +
+                       (r.dataemissao ? ' — ' + r.dataemissao : '') + '</div>';
+            }).join('');
+
+            this.$el.find('.qr-dup-list').html(rows);
+            this.$el.find('.qr-dup-warning').show();
+
+            this.$el.find('.qr-btn-dup-continue').off('click').on('click', function () {
+                self._hideDupWarning();
+                self._applyParsed(parsed);
+                self._setStatus('QR AT lido — a converter para PDF...');
+                self._imgToPdfAndUpload(img, objectUrl, true);
+            });
+            this.$el.find('.qr-btn-dup-cancel').off('click').on('click', function () {
+                self._hideDupWarning();
+                URL.revokeObjectURL(objectUrl);
+                self._setBtnState('idle');
+                self._setStatus('Cancelado.');
+            });
+        },
+
+        _hideDupWarning: function () {
+            this.$el.find('.qr-dup-warning').hide();
+        },
+
         /* ── Image → A4 PDF → upload ────────────────────────── */
 
         _imgToPdfAndUpload: function (img, objectUrl, qrSuccess) {
-            var self = this;
+            var self     = this;
+            var rotation = this._rotation || 0;
+
             this._loadScript(JSPDF_URL, 'jspdf', function () {
-                var canvas = document.createElement('canvas');
-                canvas.width  = img.naturalWidth;
-                canvas.height = img.naturalHeight;
-                var ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
+                /* Draw original image */
+                var src = document.createElement('canvas');
+                src.width  = img.naturalWidth;
+                src.height = img.naturalHeight;
+                src.getContext('2d').drawImage(img, 0, 0);
                 URL.revokeObjectURL(objectUrl);
 
-                /* Convert to greyscale in-place */
-                var id = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                var d  = id.data;
+                /* Apply rotation */
+                var canvas;
+                if (rotation === 0) {
+                    canvas = src;
+                } else {
+                    canvas = document.createElement('canvas');
+                    var swap = (rotation === 90 || rotation === 270);
+                    canvas.width  = swap ? src.height : src.width;
+                    canvas.height = swap ? src.width  : src.height;
+                    var rctx = canvas.getContext('2d');
+                    rctx.translate(canvas.width / 2, canvas.height / 2);
+                    rctx.rotate(rotation * Math.PI / 180);
+                    rctx.drawImage(src, -src.width / 2, -src.height / 2);
+                }
+
+                /* Greyscale */
+                var ctx = canvas.getContext('2d');
+                var id  = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                var d   = id.data;
                 for (var p = 0; p < d.length; p += 4) {
-                    var g = Math.round(0.299 * d[p] + 0.587 * d[p+1] + 0.114 * d[p+2]);
-                    d[p] = d[p+1] = d[p+2] = g;
+                    var g = Math.round(0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2]);
+                    d[p] = d[p + 1] = d[p + 2] = g;
                 }
                 ctx.putImageData(id, 0, 0);
 
+                /* Fit to A4 */
                 var a4W = 210, a4H = 297, margin = 8;
                 var maxW = a4W - 2 * margin, maxH = a4H - 2 * margin;
                 var ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
@@ -186,19 +328,24 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             var nif   = fields['A'] || '';
             var total = parseFloat(fields['O'] || '0') || 0;
 
+            /* Date: field F = YYYYMMDD */
+            var dateRaw     = fields['F'] || '';
+            var dataemissao = /^\d{8}$/.test(dateRaw)
+                ? dateRaw.substring(0, 4) + '-' + dateRaw.substring(4, 6) + '-' + dateRaw.substring(6, 8)
+                : '';
+
             /* Slide a window over consecutive I-fields (I2..I12).
                Collect ALL valid tax pairs (rate 1%-30%) — a single invoice
-               can have multiple brackets (e.g. 13% + 23%). Sum all bases and
-               IVAs; taxaiva = rate of the bracket with the largest base. */
-            var iKeys        = ['I2','I3','I4','I5','I6','I7','I8','I9','I10','I11','I12'];
-            var totalBase    = 0, totalIva = 0, dominantBase = 0, dominantRate = 0;
-            var usedIdx      = {};
-            var brackets     = [];
+               can have multiple brackets. Sum all bases/IVAs. */
+            var iKeys       = ['I2','I3','I4','I5','I6','I7','I8','I9','I10','I11','I12'];
+            var totalBase   = 0, totalIva = 0, dominantBase = 0, dominantRate = 0;
+            var usedIdx     = {};
+            var brackets    = [];
 
             for (var i = 0; i < iKeys.length - 1; i++) {
                 if (usedIdx[i]) { continue; }
-                var base = parseFloat(fields[iKeys[i]]   || '0');
-                var iva  = parseFloat(fields[iKeys[i+1]] || '0');
+                var base = parseFloat(fields[iKeys[i]]     || '0');
+                var iva  = parseFloat(fields[iKeys[i + 1]] || '0');
                 if (base <= 0 || iva <= 0) { continue; }
                 var rate = iva / base;
                 if (rate < 0.01 || rate > 0.30) { continue; }
@@ -212,6 +359,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
             return {
                 nif:         nif,
+                dataemissao: dataemissao,
                 subtotal:    Math.round(totalBase * 100) / 100,
                 iva:         Math.round(totalIva  * 100) / 100,
                 taxaiva:     dominantBase > 0 ? Math.round(dominantRate * 100) : 0,
@@ -222,11 +370,12 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
         _applyParsed: function (p) {
             this.model.set('nifdocumento', p.nif);
-            this.model.set('subtotal',     p.subtotal);
-            this.model.set('iva',          p.iva);
-            this.model.set('taxaiva',      p.taxaiva);
-            this.model.set('total',        p.total);
-            this.model.set('ivadetalhes',  p.ivadetalhes);
+            if (p.dataemissao) { this.model.set('dataemissao', p.dataemissao); }
+            this.model.set('subtotal',    p.subtotal);
+            this.model.set('iva',         p.iva);
+            this.model.set('taxaiva',     p.taxaiva);
+            this.model.set('total',       p.total);
+            this.model.set('ivadetalhes', p.ivadetalhes);
         },
 
         /* ── Upload ────────────────────────────────────────── */
@@ -300,8 +449,6 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         _loadScript: function (url, globalName, cb) {
             if (window[globalName]) { cb(); return; }
             var self = this;
-            /* Temporarily hide AMD so the UMD build falls through to
-               the window global assignment instead of calling define() */
             var amd = define.amd;
             define.amd = undefined;
             var script = document.createElement('script');

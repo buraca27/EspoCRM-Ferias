@@ -23,6 +23,10 @@
             "maxLength": 20,
             "label": "NIF Emitente"
         },
+        "dataemissao": {
+            "type": "date",
+            "label": "Data de Emissão"
+        },
         "subtotal": {
             "type": "float",
             "label": "Subtotal"

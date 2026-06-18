@@ -12,7 +12,11 @@
             ],
             [
                 { "name": "nifdocumento" },
-                { "name": "total" }
+                { "name": "dataemissao" }
+            ],
+            [
+                { "name": "total" },
+                false
             ],
             [
                 { "name": "subtotal" },
