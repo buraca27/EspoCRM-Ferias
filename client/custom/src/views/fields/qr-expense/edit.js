@@ -69,6 +69,16 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                     '<span class="qr-status" style="font-size:13px;color:#888;"></span>' +
                 '</div>' +
 
+                /* Multiple QR notice (hidden) */
+                '<div class="qr-multi-notice" style="display:none;margin-top:10px;background:#e3f2fd;' +
+                'border:1px solid #90caf9;border-radius:6px;padding:10px 12px;font-size:13px;color:#1565c0;">' +
+                    '<span class="fas fa-info-circle" style="margin-right:5px;"></span>' +
+                    '<strong>2 faturas detetadas na imagem.</strong> ' +
+                    'Os dados abaixo são da 1ª fatura. ' +
+                    '<span class="qr-multi-extra"></span>' +
+                    ' Registe a outra fatura numa entrada separada.' +
+                '</div>' +
+
                 /* Duplicate warning (hidden) */
                 '<div class="qr-dup-warning" style="display:none;margin-top:10px;background:#fff8e1;' +
                 'border:1px solid #ffe082;border-radius:6px;padding:10px 12px;">' +
@@ -121,35 +131,58 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                     var w = img.naturalWidth;
                     var h = img.naturalHeight;
 
-                    /* Downscale to max 1200px for QR scan — ZXing reads QR at low res,
-                       scanning a 12MP photo is ~10× slower than a 1.4MP crop */
+                    /* Downscale to 1200px max, then split left/right to detect
+                       multiple receipts in one photo */
                     var MAX_QR  = 1200;
                     var qrScale = Math.min(1, MAX_QR / Math.max(w, h));
-                    var qrC     = document.createElement('canvas');
-                    qrC.width   = Math.round(w * qrScale);
-                    qrC.height  = Math.round(h * qrScale);
-                    qrC.getContext('2d').drawImage(img, 0, 0, qrC.width, qrC.height);
+                    var qrW     = Math.round(w * qrScale);
+                    var qrH     = Math.round(h * qrScale);
+                    var qrFull  = document.createElement('canvas');
+                    qrFull.width = qrW; qrFull.height = qrH;
+                    qrFull.getContext('2d').drawImage(img, 0, 0, qrW, qrH);
 
-                    window.QrScanner.scanImage(qrC, {
-                        returnDetailedScanResult: true,
-                        scanRegion: { x: 0, y: 0, width: qrC.width, height: qrC.height }
-                    })
-                    .then(function (result) {
-                        var raw    = (result && result.data) ? result.data : String(result);
-                        var parsed = self._parseQrAT(raw);
-                        console.log('[QR] raw:', raw.substring(0, 200));
+                    var halfW = Math.round(qrW / 2);
+                    function makeCrop(sx, sw) {
+                        var c = document.createElement('canvas');
+                        c.width = sw; c.height = qrH;
+                        c.getContext('2d').drawImage(qrFull, sx, 0, sw, qrH, 0, 0, sw, qrH);
+                        return c;
+                    }
+                    var qrL = makeCrop(0, halfW);
+                    var qrR = makeCrop(halfW, qrW - halfW);
 
-                        if (parsed) {
-                            self._setStatus('QR AT lido — a verificar duplicados...');
-                            self._checkDuplicates(parsed, img, objectUrl);
-                        } else {
-                            self._setStatus('QR não é formato AT — a converter para PDF...');
+                    function doScan(canvas) {
+                        return window.QrScanner.scanImage(canvas, {
+                            returnDetailedScanResult: true,
+                            scanRegion: { x: 0, y: 0, width: canvas.width, height: canvas.height }
+                        }).then(function (r) {
+                            return (r && r.data) ? r.data : String(r);
+                        }).catch(function () { return null; });
+                    }
+
+                    Promise.all([doScan(qrL), doScan(qrR)]).then(function (raws) {
+                        var rawL = raws[0], rawR = raws[1];
+                        /* Deduplicate — same QR can appear in both halves if centred */
+                        var unique = [];
+                        if (rawL) { unique.push(rawL); }
+                        if (rawR && rawR !== rawL) { unique.push(rawR); }
+
+                        var parsedList = unique.map(function (r) {
+                            return self._parseQrAT(r);
+                        }).filter(Boolean);
+
+                        console.log('[QR] AT codes found:', parsedList.length);
+
+                        if (parsedList.length === 0) {
+                            self._setStatus('Sem QR AT — a converter para PDF...');
                             self._imgToPdfAndUpload(img, objectUrl, false);
+                        } else {
+                            if (parsedList.length > 1) {
+                                self._showMultiQrNotice(parsedList.slice(1));
+                            }
+                            self._setStatus('QR AT lido — a verificar duplicados...');
+                            self._checkDuplicates(parsedList[0], img, objectUrl);
                         }
-                    })
-                    .catch(function () {
-                        self._setStatus('Sem QR — a converter para PDF...');
-                        self._imgToPdfAndUpload(img, objectUrl, false);
                     });
                 };
                 img.onerror = function () {
@@ -221,6 +254,14 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
         _hideDupWarning: function () {
             this.$el.find('.qr-dup-warning').hide();
+        },
+
+        _showMultiQrNotice: function (others) {
+            var extra = others.map(function (p) {
+                return 'NIF ' + p.nif + ', Total ' + p.total.toFixed(2) + '€';
+            }).join(' | ');
+            this.$el.find('.qr-multi-extra').text('(2ª fatura: ' + extra + ')');
+            this.$el.find('.qr-multi-notice').show();
         },
 
         /* ── Image → A4 PDF → upload ────────────────────────── */
@@ -400,7 +441,10 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
         _setStatus: function (msg) { this.$el.find('.qr-status').text(msg); },
         _showError:  function (msg) { this.$el.find('.qr-error').text(msg).show(); },
-        _clearError: function ()    { this.$el.find('.qr-error').hide().text(''); },
+        _clearError: function ()    {
+            this.$el.find('.qr-error').hide().text('');
+            this.$el.find('.qr-multi-notice').hide();
+        },
 
         /* ── Script loader — suppress AMD so UMD assigns to window ─ */
 
