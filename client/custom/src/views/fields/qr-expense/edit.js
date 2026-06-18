@@ -88,15 +88,24 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             this._setStatus('A ler QR code...');
             this._setBtnState('loading');
 
-            /* Show thumbnail preview immediately */
-            var previewUrl = URL.createObjectURL(file);
-            this.$el.find('.qr-preview-img').attr('src', previewUrl);
+            var objectUrl = URL.createObjectURL(file);
+            this.$el.find('.qr-preview-img').attr('src', objectUrl);
             this.$el.find('.qr-preview').show();
 
             this._loadScript(QR_SCANNER_URL, 'QrScanner', function () {
                 window.QrScanner.WORKER_PATH = QR_WORKER_URL;
 
-                window.QrScanner.scanImage(file, { returnDetailedScanResult: true })
+                /* Load image first to get full dimensions,
+                   then scan the ENTIRE image (not just center crop) */
+                var img = new Image();
+                img.onload = function () {
+                    var w = img.naturalWidth;
+                    var h = img.naturalHeight;
+
+                    window.QrScanner.scanImage(img, {
+                        returnDetailedScanResult: true,
+                        scanRegion: { x: 0, y: 0, width: w, height: h }
+                    })
                     .then(function (result) {
                         var raw = (result && result.data) ? result.data : String(result);
                         console.log('[QR] raw:', raw.substring(0, 200));
@@ -104,60 +113,49 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                         if (parsed) {
                             self._applyParsed(parsed);
                             self._setStatus('QR AT lido — a converter para PDF...');
-                            self._convertAndUpload(file, true);
                         } else {
                             self._setStatus('QR nao e formato AT — a converter para PDF...');
-                            self._convertAndUpload(file, false);
                         }
+                        self._imgToPdfAndUpload(img, objectUrl, !!parsed);
                     })
                     .catch(function () {
-                        self._setStatus('Sem QR na imagem — a converter para PDF...');
-                        self._convertAndUpload(file, false);
+                        self._setStatus('Sem QR — a converter para PDF...');
+                        self._imgToPdfAndUpload(img, objectUrl, false);
                     });
+                };
+                img.onerror = function () {
+                    URL.revokeObjectURL(objectUrl);
+                    self._showError('Erro ao carregar imagem.');
+                    self._setBtnState('idle');
+                };
+                img.src = objectUrl;
             });
         },
 
-        /* ── Convert image file → A4 PDF → upload ──────────── */
+        /* ── Image → A4 PDF → upload ────────────────────────── */
 
-        _convertAndUpload: function (file, qrSuccess) {
+        _imgToPdfAndUpload: function (img, objectUrl, qrSuccess) {
             var self = this;
-
             this._loadScript(JSPDF_URL, 'jspdf', function () {
-                var objectUrl = URL.createObjectURL(file);
-                var img = new Image();
+                var canvas = document.createElement('canvas');
+                canvas.width  = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                canvas.getContext('2d').drawImage(img, 0, 0);
+                URL.revokeObjectURL(objectUrl);
 
-                img.onload = function () {
-                    /* Draw full-res image to canvas */
-                    var canvas = document.createElement('canvas');
-                    canvas.width  = img.naturalWidth;
-                    canvas.height = img.naturalHeight;
-                    canvas.getContext('2d').drawImage(img, 0, 0);
-                    URL.revokeObjectURL(objectUrl);
+                var a4W = 210, a4H = 297, margin = 8;
+                var maxW = a4W - 2 * margin, maxH = a4H - 2 * margin;
+                var ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
+                var fitW  = canvas.width  * ratio;
+                var fitH  = canvas.height * ratio;
 
-                    /* Fit into A4 with 8mm margin */
-                    var a4W = 210, a4H = 297, margin = 8;
-                    var maxW = a4W - 2 * margin;
-                    var maxH = a4H - 2 * margin;
-                    var ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
-                    var fitW  = canvas.width  * ratio;
-                    var fitH  = canvas.height * ratio;
+                var JsPDF   = window.jspdf.jsPDF;
+                var imgData = canvas.toDataURL('image/jpeg', 0.88);
+                var pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                pdf.addImage(imgData, 'JPEG', (a4W - fitW) / 2, (a4H - fitH) / 2, fitW, fitH);
 
-                    var JsPDF   = window.jspdf.jsPDF;
-                    var imgData = canvas.toDataURL('image/jpeg', 0.88);
-                    var pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-                    pdf.addImage(imgData, 'JPEG', (a4W - fitW) / 2, (a4H - fitH) / 2, fitW, fitH);
-
-                    self._setStatus('A enviar PDF...');
-                    self._uploadBlob(pdf.output('blob'), qrSuccess);
-                };
-
-                img.onerror = function () {
-                    URL.revokeObjectURL(objectUrl);
-                    self._showError('Nao foi possivel ler a imagem.');
-                    self._setBtnState('idle');
-                };
-
-                img.src = objectUrl;
+                self._setStatus('A enviar PDF...');
+                self._uploadBlob(pdf.output('blob'), qrSuccess);
             });
         },
 
