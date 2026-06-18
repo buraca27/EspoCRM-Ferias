@@ -166,19 +166,31 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             if (!raw) { return null; }
             raw = raw.replace(/[\r\n]/g, '');
             if (raw.indexOf('A:') === -1 || raw.indexOf('O:') === -1) { return null; }
+
             var fields = {};
             raw.split('*').forEach(function (pair) {
                 var idx = pair.indexOf(':');
                 if (idx > -1) { fields[pair.substring(0, idx)] = pair.substring(idx + 1); }
             });
+
             var nif   = fields['A'] || '';
             var total = parseFloat(fields['O'] || '0') || 0;
-            var pairs = [
-                { base: parseFloat(fields['I2'] || '0'), iva: parseFloat(fields['I3'] || '0') },
-                { base: parseFloat(fields['I4'] || '0'), iva: parseFloat(fields['I5'] || '0') },
-                { base: parseFloat(fields['I6'] || '0'), iva: parseFloat(fields['I7'] || '0') }
-            ];
-            var best = pairs.reduce(function (a, b) { return b.base > a.base ? b : a; }, { base: 0, iva: 0 });
+
+            /* Slide a window over consecutive I-fields (I2..I12) and find
+               pairs where the ratio iva/base falls in a valid tax range (1%-30%).
+               This handles variable field offsets across different QR formats. */
+            var iKeys = ['I2','I3','I4','I5','I6','I7','I8','I9','I10','I11','I12'];
+            var best  = { base: 0, iva: 0 };
+
+            for (var i = 0; i < iKeys.length - 1; i++) {
+                var base = parseFloat(fields[iKeys[i]]   || '0');
+                var iva  = parseFloat(fields[iKeys[i+1]] || '0');
+                if (base <= 0 || iva <= 0) { continue; }
+                var rate = iva / base;
+                if (rate < 0.01 || rate > 0.30) { continue; } /* not a valid tax rate */
+                if (base > best.base) { best = { base: base, iva: iva }; }
+            }
+
             return {
                 nif:      nif,
                 subtotal: best.base,
