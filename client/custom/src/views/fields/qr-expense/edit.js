@@ -141,8 +141,18 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 var canvas = document.createElement('canvas');
                 canvas.width  = img.naturalWidth;
                 canvas.height = img.naturalHeight;
-                canvas.getContext('2d').drawImage(img, 0, 0);
+                var ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
                 URL.revokeObjectURL(objectUrl);
+
+                /* Convert to greyscale in-place */
+                var id = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                var d  = id.data;
+                for (var p = 0; p < d.length; p += 4) {
+                    var g = Math.round(0.299 * d[p] + 0.587 * d[p+1] + 0.114 * d[p+2]);
+                    d[p] = d[p+1] = d[p+2] = g;
+                }
+                ctx.putImageData(id, 0, 0);
 
                 var a4W = 210, a4H = 297, margin = 8;
                 var maxW = a4W - 2 * margin, maxH = a4H - 2 * margin;
