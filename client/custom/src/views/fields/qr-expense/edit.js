@@ -153,6 +153,8 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             this._hideDupWarning();
             this._setStatus('A ler QR code...');
             this._setBtnState('loading');
+            /* Hide rotation controls and Processar button once processing starts */
+            this.$el.find('.qr-btn-rotate-l, .qr-btn-rotate-r, .qr-btn-process').hide();
 
             var objectUrl = URL.createObjectURL(file);
 
@@ -437,6 +439,10 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 $icon.attr('class', 'fas fa-check');
                 $label.text('QR lido');
                 $btn.removeClass('btn-default').addClass('btn-success');
+                /* Lock — prevent selecting another file */
+                this.$el.find('.qr-file-input').prop('disabled', true);
+                $btn.css({ opacity: '1', cursor: 'default' })
+                    .off('click').on('click', function (e) { e.preventDefault(); });
             }
         },
 
