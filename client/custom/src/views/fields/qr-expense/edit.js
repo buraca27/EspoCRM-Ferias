@@ -121,22 +121,30 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                     var w = img.naturalWidth;
                     var h = img.naturalHeight;
 
-                    /* Downscale to 1200px max for speed */
-                    var MAX_QR  = 1200;
-                    var qrScale = Math.min(1, MAX_QR / Math.max(w, h));
-                    var qrW     = Math.round(w * qrScale);
-                    var qrH     = Math.round(h * qrScale);
-                    var qrFull  = document.createElement('canvas');
-                    qrFull.width = qrW; qrFull.height = qrH;
-                    qrFull.getContext('2d').drawImage(img, 0, 0, qrW, qrH);
+                    /* Scan 8 overlapping regions in parallel (60% width/height each,
+                       20% offset), so any QR code near a boundary is always fully
+                       captured in at least one region — covers side-by-side,
+                       top/bottom, diagonal, any corner arrangement */
+                    var MAX_QR = 1200;
+                    var w6 = Math.round(w * 0.6), h6 = Math.round(h * 0.6);
+                    var w4 = Math.round(w * 0.4), h4 = Math.round(h * 0.4);
+                    var regions = [
+                        [0,  0,  w6,   h  ],  /* left 60%, full height    */
+                        [w4, 0,  w-w4, h  ],  /* right 60%, full height   */
+                        [0,  0,  w,    h6 ],  /* full width, top 60%      */
+                        [0,  h4, w,    h-h4], /* full width, bottom 60%   */
+                        [0,  0,  w6,   h6 ],  /* top-left 60×60           */
+                        [w4, 0,  w-w4, h6 ],  /* top-right 60×60          */
+                        [0,  h4, w6,   h-h4], /* bottom-left 60×60        */
+                        [w4, h4, w-w4, h-h4]  /* bottom-right 60×60       */
+                    ];
 
-                    /* Scan left and right halves in parallel to detect
-                       whether the photo contains more than one receipt */
-                    var halfW = Math.round(qrW / 2);
-                    function makeCrop(sx, sw) {
+                    function makeRegion(sx, sy, sw, sh) {
+                        var scale = Math.min(1, MAX_QR / Math.max(sw, sh));
                         var c = document.createElement('canvas');
-                        c.width = sw; c.height = qrH;
-                        c.getContext('2d').drawImage(qrFull, sx, 0, sw, qrH, 0, 0, sw, qrH);
+                        c.width  = Math.round(sw * scale);
+                        c.height = Math.round(sh * scale);
+                        c.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
                         return c;
                     }
 
@@ -149,29 +157,32 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                         }).catch(function () { return null; });
                     }
 
-                    Promise.all([
-                        doScan(makeCrop(0, halfW)),
-                        doScan(makeCrop(halfW, qrW - halfW))
-                    ]).then(function (raws) {
-                        var rawL = raws[0], rawR = raws[1];
+                    Promise.all(regions.map(function (r) {
+                        return doScan(makeRegion(r[0], r[1], r[2], r[3]));
+                    })).then(function (raws) {
+                        /* Collect unique valid AT QR codes across all regions */
+                        var unique = [];
+                        raws.forEach(function (raw) {
+                            if (raw && self._parseQrAT(raw) &&
+                                unique.indexOf(raw) === -1) {
+                                unique.push(raw);
+                            }
+                        });
 
-                        /* Two distinct valid AT QR codes → two receipts in one photo */
-                        var parsedL = rawL ? self._parseQrAT(rawL) : null;
-                        var parsedR = rawR ? self._parseQrAT(rawR) : null;
-                        if (parsedL && parsedR && rawL !== rawR) {
+                        console.log('[QR] distinct AT codes found:', unique.length);
+
+                        if (unique.length >= 2) {
                             URL.revokeObjectURL(objectUrl);
                             self._setSaveDisabled(false);
                             self._setBtnState('idle');
                             self._showError(
-                                '2 faturas detetadas na imagem. ' +
+                                unique.length + ' faturas detetadas na imagem. ' +
                                 'Por favor fotografe cada fatura separadamente.'
                             );
                             return;
                         }
 
-                        /* Single result: use whichever half found it */
-                        var raw    = rawL || rawR;
-                        var parsed = raw ? self._parseQrAT(raw) : null;
+                        var parsed = unique.length ? self._parseQrAT(unique[0]) : null;
 
                         if (parsed) {
                             self._setStatus('QR AT lido — a verificar duplicados...');
