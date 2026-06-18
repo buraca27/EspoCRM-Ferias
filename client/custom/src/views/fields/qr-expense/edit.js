@@ -121,55 +121,61 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                     var w = img.naturalWidth;
                     var h = img.naturalHeight;
 
-                    /* Scan 8 overlapping regions in parallel (60% width/height each,
-                       20% offset), so any QR code near a boundary is always fully
-                       captured in at least one region — covers side-by-side,
-                       top/bottom, diagonal, any corner arrangement */
-                    var MAX_QR = 1200;
-                    var w6 = Math.round(w * 0.6), h6 = Math.round(h * 0.6);
-                    var w4 = Math.round(w * 0.4), h4 = Math.round(h * 0.4);
-                    var regions = [
-                        [0,  0,  w6,   h  ],  /* left 60%, full height    */
-                        [w4, 0,  w-w4, h  ],  /* right 60%, full height   */
-                        [0,  0,  w,    h6 ],  /* full width, top 60%      */
-                        [0,  h4, w,    h-h4], /* full width, bottom 60%   */
-                        [0,  0,  w6,   h6 ],  /* top-left 60×60           */
-                        [w4, 0,  w-w4, h6 ],  /* top-right 60×60          */
-                        [0,  h4, w6,   h-h4], /* bottom-left 60×60        */
-                        [w4, h4, w-w4, h-h4]  /* bottom-right 60×60       */
+                    /* Pre-downscale the full image ONCE to a shared canvas (2400px max).
+                       All region crops are made from this — avoids allocating 8 full-res
+                       buffers simultaneously, which exhausts iOS Safari canvas memory. */
+                    var MAX_SHARED = 2400, MAX_QR = 1200;
+                    var sharedScale = Math.min(1, MAX_SHARED / Math.max(w, h));
+                    var sW = Math.round(w * sharedScale), sH = Math.round(h * sharedScale);
+                    var shared = document.createElement('canvas');
+                    shared.width = sW; shared.height = sH;
+                    shared.getContext('2d').drawImage(img, 0, 0, sW, sH);
+
+                    /* 8 overlapping regions (60 %, 20 % offset) as fractions of shared */
+                    var F = [
+                        [0,   0,   0.6, 1  ],
+                        [0.4, 0,   0.6, 1  ],
+                        [0,   0,   1,   0.6],
+                        [0,   0.4, 1,   0.6],
+                        [0,   0,   0.6, 0.6],
+                        [0.4, 0,   0.6, 0.6],
+                        [0,   0.4, 0.6, 0.6],
+                        [0.4, 0.4, 0.6, 0.6]
                     ];
 
-                    function makeRegion(sx, sy, sw, sh) {
-                        var scale = Math.min(1, MAX_QR / Math.max(sw, sh));
+                    function makeRegion(xf, yf, wf, hf) {
+                        var sx = Math.round(sW*xf), sy = Math.round(sH*yf);
+                        var sw = Math.round(sW*wf), sh = Math.round(sH*hf);
+                        var sc = Math.min(1, MAX_QR / Math.max(sw, sh));
                         var c = document.createElement('canvas');
-                        c.width  = Math.round(sw * scale);
-                        c.height = Math.round(sh * scale);
-                        c.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+                        c.width  = Math.round(sw * sc);
+                        c.height = Math.round(sh * sc);
+                        c.getContext('2d').drawImage(shared, sx, sy, sw, sh, 0, 0, c.width, c.height);
                         return c;
                     }
 
+                    /* Per-scan timeout (8 s) prevents WASM worker hangs on iOS */
                     function doScan(canvas) {
-                        return window.QrScanner.scanImage(canvas, {
+                        var scan = window.QrScanner.scanImage(canvas, {
                             returnDetailedScanResult: true,
                             scanRegion: { x: 0, y: 0, width: canvas.width, height: canvas.height }
                         }).then(function (r) {
                             return (r && r.data) ? r.data : String(r);
                         }).catch(function () { return null; });
+                        var timeout = new Promise(function (res) { setTimeout(function () { res(null); }, 8000); });
+                        return Promise.race([scan, timeout]);
                     }
 
-                    Promise.all(regions.map(function (r) {
-                        return doScan(makeRegion(r[0], r[1], r[2], r[3]));
+                    Promise.all(F.map(function (f) {
+                        return doScan(makeRegion(f[0], f[1], f[2], f[3]));
                     })).then(function (raws) {
-                        /* Collect unique valid AT QR codes across all regions */
                         var unique = [];
                         raws.forEach(function (raw) {
-                            if (raw && self._parseQrAT(raw) &&
-                                unique.indexOf(raw) === -1) {
+                            if (raw && self._parseQrAT(raw) && unique.indexOf(raw) === -1) {
                                 unique.push(raw);
                             }
                         });
-
-                        console.log('[QR] distinct AT codes found:', unique.length);
+                        console.log('[QR] AT codes found:', unique.length);
 
                         if (unique.length >= 2) {
                             URL.revokeObjectURL(objectUrl);
@@ -191,6 +197,10 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                             self._setStatus('QR não é formato AT — a converter para PDF...');
                             self._imgToPdfAndUpload(img, objectUrl, false);
                         }
+                    }).catch(function (err) {
+                        console.error('[QR] scan error:', err);
+                        self._setStatus('Sem QR — a converter para PDF...');
+                        self._imgToPdfAndUpload(img, objectUrl, false);
                     });
                 };
                 img.onerror = function () {
