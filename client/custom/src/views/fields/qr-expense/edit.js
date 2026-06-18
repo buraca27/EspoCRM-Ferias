@@ -1,15 +1,6 @@
 define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (Dep) {
 
     var BASE_PATH = (function () {
-        /* Derive base path from an already-loaded EspoCRM script tag — more
-           reliable than window.location.pathname on multi-segment installs. */
-        var s = document.querySelector('script[src*="/client/lib/"]') ||
-                document.querySelector('script[src*="/client/src/"]');
-        if (s) {
-            var m = s.src.match(/^(https?:\/\/.+?)\/client\//);
-            if (m) { return m[1]; }
-        }
-        /* Fallback */
         return window.location.origin +
                window.location.pathname.split('#')[0].replace(/\/+$/, '');
     }());
@@ -271,29 +262,28 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         _showError:  function (msg) { this.$el.find('.qr-error').text(msg).show(); },
         _clearError: function ()    { this.$el.find('.qr-error').hide().text(''); },
 
-        /* ── Library loader via RequireJS (already in EspoCRM) ─ */
+        /* ── Script loader — suppress AMD so UMD assigns to window ─ */
 
         _loadScript: function (url, globalName, cb) {
             if (window[globalName]) { cb(); return; }
             var self = this;
-            /* Use RequireJS directly — it handles UMD define() calls cleanly
-               without needing to suppress window.define */
-            require([url],
-                function (mod) {
-                    if (mod && !window[globalName]) { window[globalName] = mod; }
-                    if (window[globalName]) {
-                        cb();
-                    } else {
-                        self._showError('Falha ao inicializar ' + globalName + '.');
-                        self._setBtnState('idle');
-                    }
-                },
-                function (err) {
-                    console.error('[QR] RequireJS failed to load:', url, err);
-                    self._showError('Erro ao carregar ' + globalName + '. URL: ' + url);
-                    self._setBtnState('idle');
-                }
-            );
+            /* Temporarily hide AMD so the UMD build falls through to
+               the window global assignment instead of calling define() */
+            var amd = define.amd;
+            define.amd = undefined;
+            var script = document.createElement('script');
+            script.src = url;
+            script.onload = function () {
+                define.amd = amd;
+                cb();
+            };
+            script.onerror = function () {
+                define.amd = amd;
+                console.error('[QR] Failed to load:', url);
+                self._showError('Erro ao carregar ' + globalName + '. URL: ' + url);
+                self._setBtnState('idle');
+            };
+            document.head.appendChild(script);
         }
     });
 });
