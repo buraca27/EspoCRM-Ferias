@@ -176,26 +176,33 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             var nif   = fields['A'] || '';
             var total = parseFloat(fields['O'] || '0') || 0;
 
-            /* Slide a window over consecutive I-fields (I2..I12) and find
-               pairs where the ratio iva/base falls in a valid tax range (1%-30%).
-               This handles variable field offsets across different QR formats. */
-            var iKeys = ['I2','I3','I4','I5','I6','I7','I8','I9','I10','I11','I12'];
-            var best  = { base: 0, iva: 0 };
+            /* Slide a window over consecutive I-fields (I2..I12).
+               Collect ALL valid tax pairs (rate 1%-30%) — a single invoice
+               can have multiple brackets (e.g. 13% + 23%). Sum all bases and
+               IVAs; taxaiva = rate of the bracket with the largest base. */
+            var iKeys        = ['I2','I3','I4','I5','I6','I7','I8','I9','I10','I11','I12'];
+            var totalBase    = 0, totalIva = 0, dominantBase = 0, dominantRate = 0;
+            var usedIdx      = {};
 
             for (var i = 0; i < iKeys.length - 1; i++) {
+                if (usedIdx[i]) { continue; }
                 var base = parseFloat(fields[iKeys[i]]   || '0');
                 var iva  = parseFloat(fields[iKeys[i+1]] || '0');
                 if (base <= 0 || iva <= 0) { continue; }
                 var rate = iva / base;
-                if (rate < 0.01 || rate > 0.30) { continue; } /* not a valid tax rate */
-                if (base > best.base) { best = { base: base, iva: iva }; }
+                if (rate < 0.01 || rate > 0.30) { continue; }
+                totalBase += base;
+                totalIva  += iva;
+                if (base > dominantBase) { dominantBase = base; dominantRate = rate; }
+                usedIdx[i] = usedIdx[i + 1] = true;
+                i++;
             }
 
             return {
                 nif:      nif,
-                subtotal: best.base,
-                iva:      best.iva,
-                taxaiva:  best.base > 0 ? Math.round((best.iva / best.base) * 100) : 0,
+                subtotal: Math.round(totalBase * 100) / 100,
+                iva:      Math.round(totalIva  * 100) / 100,
+                taxaiva:  dominantBase > 0 ? Math.round(dominantRate * 100) : 0,
                 total:    total
             };
         },
