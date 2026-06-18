@@ -121,23 +121,57 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                     var w = img.naturalWidth;
                     var h = img.naturalHeight;
 
-                    /* Downscale to 1200px max — ZXing reads QR at low res,
-                       scanning a 12MP photo is ~10× slower than a 1.4MP crop */
+                    /* Downscale to 1200px max for speed */
                     var MAX_QR  = 1200;
                     var qrScale = Math.min(1, MAX_QR / Math.max(w, h));
-                    var qrC     = document.createElement('canvas');
-                    qrC.width   = Math.round(w * qrScale);
-                    qrC.height  = Math.round(h * qrScale);
-                    qrC.getContext('2d').drawImage(img, 0, 0, qrC.width, qrC.height);
+                    var qrW     = Math.round(w * qrScale);
+                    var qrH     = Math.round(h * qrScale);
+                    var qrFull  = document.createElement('canvas');
+                    qrFull.width = qrW; qrFull.height = qrH;
+                    qrFull.getContext('2d').drawImage(img, 0, 0, qrW, qrH);
 
-                    window.QrScanner.scanImage(qrC, {
-                        returnDetailedScanResult: true,
-                        scanRegion: { x: 0, y: 0, width: qrC.width, height: qrC.height }
-                    })
-                    .then(function (result) {
-                        var raw    = (result && result.data) ? result.data : String(result);
-                        var parsed = self._parseQrAT(raw);
-                        console.log('[QR] raw:', raw.substring(0, 200));
+                    /* Scan left and right halves in parallel to detect
+                       whether the photo contains more than one receipt */
+                    var halfW = Math.round(qrW / 2);
+                    function makeCrop(sx, sw) {
+                        var c = document.createElement('canvas');
+                        c.width = sw; c.height = qrH;
+                        c.getContext('2d').drawImage(qrFull, sx, 0, sw, qrH, 0, 0, sw, qrH);
+                        return c;
+                    }
+
+                    function doScan(canvas) {
+                        return window.QrScanner.scanImage(canvas, {
+                            returnDetailedScanResult: true,
+                            scanRegion: { x: 0, y: 0, width: canvas.width, height: canvas.height }
+                        }).then(function (r) {
+                            return (r && r.data) ? r.data : String(r);
+                        }).catch(function () { return null; });
+                    }
+
+                    Promise.all([
+                        doScan(makeCrop(0, halfW)),
+                        doScan(makeCrop(halfW, qrW - halfW))
+                    ]).then(function (raws) {
+                        var rawL = raws[0], rawR = raws[1];
+
+                        /* Two distinct valid AT QR codes → two receipts in one photo */
+                        var parsedL = rawL ? self._parseQrAT(rawL) : null;
+                        var parsedR = rawR ? self._parseQrAT(rawR) : null;
+                        if (parsedL && parsedR && rawL !== rawR) {
+                            URL.revokeObjectURL(objectUrl);
+                            self._setSaveDisabled(false);
+                            self._setBtnState('idle');
+                            self._showError(
+                                '2 faturas detetadas na imagem. ' +
+                                'Por favor fotografe cada fatura separadamente.'
+                            );
+                            return;
+                        }
+
+                        /* Single result: use whichever half found it */
+                        var raw    = rawL || rawR;
+                        var parsed = raw ? self._parseQrAT(raw) : null;
 
                         if (parsed) {
                             self._setStatus('QR AT lido — a verificar duplicados...');
@@ -146,10 +180,6 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                             self._setStatus('QR não é formato AT — a converter para PDF...');
                             self._imgToPdfAndUpload(img, objectUrl, false);
                         }
-                    })
-                    .catch(function () {
-                        self._setStatus('Sem QR — a converter para PDF...');
-                        self._imgToPdfAndUpload(img, objectUrl, false);
                     });
                 };
                 img.onerror = function () {
