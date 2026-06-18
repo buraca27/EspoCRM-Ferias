@@ -14,8 +14,6 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
         setup: function () {
             Dep.prototype.setup.call(this);
-            this._rotation    = 0;
-            this._pendingFile = null;
         },
 
         afterRender: function () {
@@ -55,7 +53,6 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 : '<div class="qr-attach" style="display:none;margin-top:6px;font-size:13px;color:#555;"></div>';
 
             var html =
-                /* Top row: camera button + status */
                 '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">' +
                     '<label class="btn btn-default qr-btn-scan" ' +
                     'style="display:flex;align-items:center;gap:6px;padding:7px 14px;cursor:pointer;margin:0;">' +
@@ -65,31 +62,6 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                         'style="display:none;position:absolute;width:0;height:0;">' +
                     '</label>' +
                     '<span class="qr-status" style="font-size:13px;color:#888;"></span>' +
-                '</div>' +
-
-                /* Preview + rotation controls (hidden until image selected) */
-                '<div class="qr-preview" style="display:none;margin-top:8px;">' +
-                    '<div style="display:flex;gap:10px;align-items:flex-start;">' +
-                        '<div style="width:130px;height:130px;overflow:hidden;border-radius:8px;' +
-                        'border:1px solid #ddd;background:#f5f5f5;display:flex;align-items:center;justify-content:center;flex-shrink:0;">' +
-                            '<img class="qr-preview-img" style="max-width:160px;max-height:160px;' +
-                            'object-fit:contain;transition:transform .25s;transform-origin:center;">' +
-                        '</div>' +
-                        '<div style="display:flex;flex-direction:column;gap:6px;padding-top:2px;">' +
-                            '<button type="button" class="btn btn-xs btn-default qr-btn-rotate-l" title="Rodar 90° esquerda" ' +
-                            'style="width:34px;height:30px;padding:0;display:flex;align-items:center;justify-content:center;">' +
-                                '<span class="fas fa-undo"></span>' +
-                            '</button>' +
-                            '<button type="button" class="btn btn-xs btn-default qr-btn-rotate-r" title="Rodar 90° direita" ' +
-                            'style="width:34px;height:30px;padding:0;display:flex;align-items:center;justify-content:center;">' +
-                                '<span class="fas fa-redo"></span>' +
-                            '</button>' +
-                            '<button type="button" class="btn btn-sm btn-primary qr-btn-process" ' +
-                            'style="margin-top:4px;white-space:nowrap;">' +
-                                '<span class="fas fa-cog" style="margin-right:4px;"></span>Processar' +
-                            '</button>' +
-                        '</div>' +
-                    '</div>' +
                 '</div>' +
 
                 /* Duplicate warning (hidden) */
@@ -107,42 +79,19 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 '</div>' +
 
                 attachHtml +
-                '<div class="qr-error" style="display:none;color:#e74c3c;font-size:13px;margin-top:5px;"></div>';
+                '<div class="qr-error" style="display:none;color:#e74c3c;font-size:13px;margin-top:5px;"></div>' +
+                '<div class="qr-preview" style="display:none;margin-top:8px;">' +
+                    '<img class="qr-preview-img" style="max-width:120px;max-height:160px;' +
+                    'border-radius:6px;border:1px solid #ddd;object-fit:cover;">' +
+                '</div>';
 
             this.$el.find('.qr-expense-root').html(html);
 
-            /* File selected → show preview, wait for user to click Processar */
             this.$el.find('.qr-file-input').on('change', function (e) {
                 var file = e.target.files && e.target.files[0];
                 e.target.value = '';
-                if (!file) { return; }
-                self._pendingFile = file;
-                self._rotation    = 0;
-                self._clearError();
-                self._hideDupWarning();
-                self._setStatus('');
-                var url = URL.createObjectURL(file);
-                self.$el.find('.qr-preview-img')
-                    .css('transform', 'rotate(0deg)')
-                    .attr('src', url);
-                self.$el.find('.qr-preview').show();
-                self._setBtnState('idle');
+                if (file) { self._processImage(file); }
             });
-
-            this.$el.find('.qr-btn-rotate-l').on('click', function () { self._rotate(-90); });
-            this.$el.find('.qr-btn-rotate-r').on('click', function () { self._rotate(90); });
-
-            this.$el.find('.qr-btn-process').on('click', function () {
-                if (!self._pendingFile) { return; }
-                self._processImage(self._pendingFile);
-            });
-        },
-
-        /* ── Rotation helper ───────────────────────────────── */
-
-        _rotate: function (delta) {
-            this._rotation = (this._rotation + delta + 360) % 360;
-            this.$el.find('.qr-preview-img').css('transform', 'rotate(' + this._rotation + 'deg)');
         },
 
         /* ── Main processing pipeline ──────────────────────── */
@@ -153,10 +102,10 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             this._hideDupWarning();
             this._setStatus('A ler QR code...');
             this._setBtnState('loading');
-            /* Hide rotation controls and Processar button once processing starts */
-            this.$el.find('.qr-btn-rotate-l, .qr-btn-rotate-r, .qr-btn-process').hide();
 
             var objectUrl = URL.createObjectURL(file);
+            this.$el.find('.qr-preview-img').attr('src', objectUrl);
+            this.$el.find('.qr-preview').show();
 
             this._loadScript(QR_SCANNER_URL, 'QrScanner', function () {
                 window.QrScanner.WORKER_PATH = QR_WORKER_URL;
@@ -222,7 +171,6 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 }
             })
             .catch(function () {
-                /* If check fails, proceed anyway */
                 self._applyParsed(parsed);
                 self._setStatus('QR AT lido — a converter para PDF...');
                 self._imgToPdfAndUpload(img, objectUrl, true);
@@ -261,43 +209,24 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         /* ── Image → A4 PDF → upload ────────────────────────── */
 
         _imgToPdfAndUpload: function (img, objectUrl, qrSuccess) {
-            var self     = this;
-            var rotation = this._rotation || 0;
-
+            var self = this;
             this._loadScript(JSPDF_URL, 'jspdf', function () {
-                /* Draw original image */
-                var src = document.createElement('canvas');
-                src.width  = img.naturalWidth;
-                src.height = img.naturalHeight;
-                src.getContext('2d').drawImage(img, 0, 0);
+                var canvas = document.createElement('canvas');
+                canvas.width  = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                var ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
                 URL.revokeObjectURL(objectUrl);
 
-                /* Apply rotation */
-                var canvas;
-                if (rotation === 0) {
-                    canvas = src;
-                } else {
-                    canvas = document.createElement('canvas');
-                    var swap = (rotation === 90 || rotation === 270);
-                    canvas.width  = swap ? src.height : src.width;
-                    canvas.height = swap ? src.width  : src.height;
-                    var rctx = canvas.getContext('2d');
-                    rctx.translate(canvas.width / 2, canvas.height / 2);
-                    rctx.rotate(rotation * Math.PI / 180);
-                    rctx.drawImage(src, -src.width / 2, -src.height / 2);
-                }
-
                 /* Greyscale */
-                var ctx = canvas.getContext('2d');
-                var id  = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                var d   = id.data;
+                var id = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                var d  = id.data;
                 for (var p = 0; p < d.length; p += 4) {
                     var g = Math.round(0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2]);
                     d[p] = d[p + 1] = d[p + 2] = g;
                 }
                 ctx.putImageData(id, 0, 0);
 
-                /* Fit to A4 */
                 var a4W = 210, a4H = 297, margin = 8;
                 var maxW = a4W - 2 * margin, maxH = a4H - 2 * margin;
                 var ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
@@ -336,13 +265,10 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 ? dateRaw.substring(0, 4) + '-' + dateRaw.substring(4, 6) + '-' + dateRaw.substring(6, 8)
                 : '';
 
-            /* Slide a window over consecutive I-fields (I2..I12).
-               Collect ALL valid tax pairs (rate 1%-30%) — a single invoice
-               can have multiple brackets. Sum all bases/IVAs. */
-            var iKeys       = ['I2','I3','I4','I5','I6','I7','I8','I9','I10','I11','I12'];
-            var totalBase   = 0, totalIva = 0, dominantBase = 0, dominantRate = 0;
-            var usedIdx     = {};
-            var brackets    = [];
+            var iKeys     = ['I2','I3','I4','I5','I6','I7','I8','I9','I10','I11','I12'];
+            var totalBase = 0, totalIva = 0, dominantBase = 0, dominantRate = 0;
+            var usedIdx   = {};
+            var brackets  = [];
 
             for (var i = 0; i < iKeys.length - 1; i++) {
                 if (usedIdx[i]) { continue; }
@@ -439,9 +365,8 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 $icon.attr('class', 'fas fa-check');
                 $label.text('QR lido');
                 $btn.removeClass('btn-default').addClass('btn-success');
-                /* Lock — prevent selecting another file */
                 this.$el.find('.qr-file-input').prop('disabled', true);
-                $btn.css({ opacity: '1', cursor: 'default' })
+                $btn.css('cursor', 'default')
                     .off('click').on('click', function (e) { e.preventDefault(); });
             }
         },
