@@ -6,5 +6,10 @@
         "list": "views/list",
         "detail": "views/detail",
         "edit": "views/edit"
+    },
+    "fields": {
+        "ivadetalhes": {
+            "view": "custom:views/fields/iva-detalhe/detail"
+        }
     }
 }

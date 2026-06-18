@@ -59,9 +59,8 @@
             "label": "Scan Fatura"
         },
         "ivadetalhes": {
-            "type": "ivaDetalhe",
-            "label": "Detalhe IVA",
-            "notStorable": false
+            "type": "text",
+            "label": "Detalhe IVA"
         },
         "description": {
             "type": "text",
