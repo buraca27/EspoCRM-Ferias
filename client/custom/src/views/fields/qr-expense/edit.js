@@ -57,7 +57,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                     'style="display:flex;align-items:center;gap:6px;padding:7px 14px;cursor:pointer;margin:0;">' +
                         '<span class="fas fa-camera" style="font-size:15px;"></span>' +
                         '<span class="qr-btn-label">Foto da Fatura</span>' +
-                        '<input type="file" accept="image/*" class="qr-file-input" ' +
+                        '<input type="file" accept="image/*" capture="environment" class="qr-file-input" ' +
                         'style="display:none;position:absolute;width:0;height:0;">' +
                     '</label>' +
                     '<span class="qr-status" style="font-size:13px;color:#888;"></span>' +
