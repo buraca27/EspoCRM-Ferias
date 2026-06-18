@@ -1,7 +1,17 @@
 define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (Dep) {
 
     var BASE_PATH = (function () {
-        return window.location.origin + window.location.pathname.split('#')[0].replace(/\/+$/, '');
+        /* Derive base path from an already-loaded EspoCRM script tag — more
+           reliable than window.location.pathname on multi-segment installs. */
+        var s = document.querySelector('script[src*="/client/lib/"]') ||
+                document.querySelector('script[src*="/client/src/"]');
+        if (s) {
+            var m = s.src.match(/^(https?:\/\/.+?)\/client\//);
+            if (m) { return m[1]; }
+        }
+        /* Fallback */
+        return window.location.origin +
+               window.location.pathname.split('#')[0].replace(/\/+$/, '');
     }());
     var QR_SCANNER_URL = BASE_PATH + '/client/custom/lib/qr-scanner.umd.min.js';
     var QR_WORKER_URL  = BASE_PATH + '/client/custom/lib/qr-scanner-worker.min.js';
@@ -273,7 +283,8 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             script.onload  = function () { window.define = savedDefine; cb(); };
             script.onerror = function () {
                 window.define = savedDefine;
-                self._showError('Erro ao carregar ' + globalName + '.');
+                console.error('[QR] Failed to load:', url);
+                self._showError('Erro ao carregar ' + globalName + '. URL: ' + url);
                 self._setBtnState('idle');
             };
             document.head.appendChild(script);
