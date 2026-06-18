@@ -58,6 +58,11 @@
             "notStorable": true,
             "label": "Scan Fatura"
         },
+        "ivadetalhes": {
+            "type": "ivaDetalhe",
+            "label": "Detalhe IVA",
+            "notStorable": false
+        },
         "description": {
             "type": "text",
             "label": "Descrição"

@@ -23,6 +23,9 @@
                 { "name": "documentocontab" }
             ],
             [
+                { "name": "ivadetalhes", "fullWidth": true }
+            ],
+            [
                 { "name": "idphc" },
                 { "name": "idcontab" }
             ],

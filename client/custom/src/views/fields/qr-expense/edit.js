@@ -193,6 +193,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             var iKeys        = ['I2','I3','I4','I5','I6','I7','I8','I9','I10','I11','I12'];
             var totalBase    = 0, totalIva = 0, dominantBase = 0, dominantRate = 0;
             var usedIdx      = {};
+            var brackets     = [];
 
             for (var i = 0; i < iKeys.length - 1; i++) {
                 if (usedIdx[i]) { continue; }
@@ -203,17 +204,19 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 if (rate < 0.01 || rate > 0.30) { continue; }
                 totalBase += base;
                 totalIva  += iva;
+                brackets.push({ taxa: Math.round(rate * 100), base: Math.round(base * 100) / 100, iva: Math.round(iva * 100) / 100 });
                 if (base > dominantBase) { dominantBase = base; dominantRate = rate; }
                 usedIdx[i] = usedIdx[i + 1] = true;
                 i++;
             }
 
             return {
-                nif:      nif,
-                subtotal: Math.round(totalBase * 100) / 100,
-                iva:      Math.round(totalIva  * 100) / 100,
-                taxaiva:  dominantBase > 0 ? Math.round(dominantRate * 100) : 0,
-                total:    total
+                nif:         nif,
+                subtotal:    Math.round(totalBase * 100) / 100,
+                iva:         Math.round(totalIva  * 100) / 100,
+                taxaiva:     dominantBase > 0 ? Math.round(dominantRate * 100) : 0,
+                total:       total,
+                ivadetalhes: JSON.stringify(brackets)
             };
         },
 
@@ -223,6 +226,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             this.model.set('iva',          p.iva);
             this.model.set('taxaiva',      p.taxaiva);
             this.model.set('total',        p.total);
+            this.model.set('ivadetalhes',  p.ivadetalhes);
         },
 
         /* ── Upload ────────────────────────────────────────── */
