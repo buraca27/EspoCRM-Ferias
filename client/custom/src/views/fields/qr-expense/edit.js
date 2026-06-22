@@ -148,18 +148,35 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                         return c;
                     }
 
+                    var isFirefox = /firefox/i.test(navigator.userAgent);
+                    var SCAN_TIMEOUT = isFirefox ? 15000 : 10000;
+
                     function doScan(canvas) {
-                        return window.QrScanner.scanImage(canvas, {
+                        var scan = window.QrScanner.scanImage(canvas, {
                             returnDetailedScanResult: true,
                             scanRegion: { x: 0, y: 0, width: canvas.width, height: canvas.height }
                         }).then(function (r) {
                             return (r && r.data) ? r.data : String(r);
                         }).catch(function () { return null; });
+                        var timeout = new Promise(function (res) {
+                            setTimeout(function () { res(null); }, SCAN_TIMEOUT);
+                        });
+                        return Promise.race([scan, timeout]);
                     }
 
-                    Promise.all(regions.map(function (r) {
-                        return doScan(makeRegion(r[0], r[1], r[2], r[3]));
-                    })).then(function (raws) {
+                    /* Firefox: sequential (worker friendly); others: parallel */
+                    var scanPromise = isFirefox
+                        ? regions.reduce(function (p, r) {
+                            return p.then(function (results) {
+                                return doScan(makeRegion(r[0], r[1], r[2], r[3]))
+                                    .then(function (res) { results.push(res); return results; });
+                            });
+                        }, Promise.resolve([]))
+                        : Promise.all(regions.map(function (r) {
+                            return doScan(makeRegion(r[0], r[1], r[2], r[3]));
+                        }));
+
+                    scanPromise.then(function (raws) {
                         /* Collect unique valid AT QR codes across all regions */
                         var unique = [];
                         raws.forEach(function (raw) {
