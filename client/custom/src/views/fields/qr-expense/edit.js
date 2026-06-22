@@ -103,8 +103,8 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             this._setBtnState('loading');
             this._setSaveDisabled(true);
 
-            var constraints = { video: { facingMode: 'environment' }, audio: false };
-            navigator.mediaDevices.getUserMedia(constraints)
+            /* Simple video constraint — avoid dialog by not forcing facingMode */
+            navigator.mediaDevices.getUserMedia({ video: true, audio: false })
                 .then(function (stream) {
                     self._captureFromStream(stream);
                 })
@@ -112,7 +112,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                     console.error('[QR] camera error:', err);
                     self._setSaveDisabled(false);
                     self._setBtnState('idle');
-                    self._showError('Câmara não disponível: ' + err.name);
+                    self._showError('Câmara falhou: ' + (err.name || 'desconhecido'));
                 });
         },
 
@@ -120,64 +120,72 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             var self = this;
             var video = document.createElement('video');
             video.srcObject = stream;
-            video.setAttribute('playsinline', 'true'); /* iOS */
-            video.setAttribute('autoplay', 'true');
-            video.setAttribute('muted', 'true');
+            video.playsInline = true; /* iOS */
+            video.autoplay = true;
+            video.muted = true;
 
-            var timeout = setTimeout(function () {
-                stream.getTracks().forEach(function (t) { t.stop(); });
-                self._setSaveDisabled(false);
-                self._setBtnState('idle');
-                self._showError('Câmara não respondeu no tempo esperado.');
-            }, 5000);
+            var captureTimer = setTimeout(function () {
+                self._stopStream(stream);
+                self._showError('Câmara não carregou (timeout 3s).');
+            }, 3000);
 
             video.onloadedmetadata = function () {
-                clearTimeout(timeout);
+                clearTimeout(captureTimer);
                 self._setStatus('Capturando...');
+                var w = video.videoWidth, h = video.videoHeight;
+                if (w === 0 || h === 0) {
+                    self._setSaveDisabled(false);
+                    self._setBtnState('idle');
+                    self._stopStream(stream);
+                    self._showError('Resolução da câmara inválida.');
+                    return;
+                }
+
                 setTimeout(function () {
                     try {
                         var canvas = document.createElement('canvas');
-                        canvas.width = video.videoWidth;
-                        canvas.height = video.videoHeight;
-                        if (canvas.width === 0 || canvas.height === 0) {
-                            throw new Error('Video resolution is zero');
-                        }
+                        canvas.width = w;
+                        canvas.height = h;
                         canvas.getContext('2d').drawImage(video, 0, 0);
-                        stream.getTracks().forEach(function (t) { t.stop(); });
+                        self._stopStream(stream);
 
                         canvas.toBlob(function (blob) {
-                            if (blob) {
-                                self._processImage(blob);
-                            } else {
+                            if (!blob) {
                                 self._setSaveDisabled(false);
                                 self._setBtnState('idle');
-                                self._showError('Falha ao capturar frame.');
+                                self._showError('Falha ao codificar imagem.');
+                                return;
                             }
-                        }, 'image/jpeg', 0.88);
+                            self._processImage(blob);
+                        }, 'image/jpeg', 0.9);
                     } catch (err) {
-                        stream.getTracks().forEach(function (t) { t.stop(); });
                         self._setSaveDisabled(false);
                         self._setBtnState('idle');
+                        self._stopStream(stream);
                         self._showError('Erro ao capturar: ' + err.message);
                     }
-                }, 500);
+                }, 200);
             };
 
             video.onerror = function () {
-                clearTimeout(timeout);
-                stream.getTracks().forEach(function (t) { t.stop(); });
-                self._setSaveDisabled(false);
-                self._setBtnState('idle');
-                self._showError('Erro ao carregar stream da câmara.');
+                clearTimeout(captureTimer);
+                self._stopStream(stream);
+                self._showError('Erro ao carregar câmara.');
             };
 
             video.play().catch(function (err) {
-                clearTimeout(timeout);
-                stream.getTracks().forEach(function (t) { t.stop(); });
+                clearTimeout(captureTimer);
+                self._stopStream(stream);
                 self._setSaveDisabled(false);
                 self._setBtnState('idle');
                 self._showError('Erro ao iniciar câmara: ' + err.name);
             });
+        },
+
+        _stopStream: function (stream) {
+            stream.getTracks().forEach(function (track) { track.stop(); });
+            this._setSaveDisabled(false);
+            this._setBtnState('idle');
         },
 
         /* ── Main processing pipeline ──────────────────────── */
