@@ -270,18 +270,59 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
         /* ── Image → A4 PDF → upload ────────────────────────── */
 
+        _detectReceiptBorders: function (img) {
+            /* Quick edge detection: find darkest pixels (receipt edges) */
+            var canvas = document.createElement('canvas');
+            var w = Math.min(img.naturalWidth, 1200), h = Math.min(img.naturalHeight, 1600);
+            canvas.width = w;
+            canvas.height = h;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, w, h);
+            var imgData = ctx.getImageData(0, 0, w, h);
+            var data = imgData.data;
+
+            var left = w, right = 0, top = h, bottom = 0;
+            for (var i = 0; i < data.length; i += 4) {
+                var gray = (data[i] + data[i+1] + data[i+2]) / 3;
+                if (gray < 200) { /* dark pixel */
+                    var idx = i / 4;
+                    var x = idx % w, y = Math.floor(idx / w);
+                    if (x < left) left = x;
+                    if (x > right) right = x;
+                    if (y < top) top = y;
+                    if (y > bottom) bottom = y;
+                }
+            }
+
+            /* Scale back to original size + small margin */
+            var scale = Math.max(img.naturalWidth / w, img.naturalHeight / h);
+            var margin = 20;
+            return {
+                x: Math.max(0, left * scale - margin),
+                y: Math.max(0, top * scale - margin),
+                w: Math.min(img.naturalWidth, (right - left) * scale + margin * 2),
+                h: Math.min(img.naturalHeight, (bottom - top) * scale + margin * 2)
+            };
+        },
+
         _imgToPdfAndUpload: function (img, objectUrl, qrSuccess) {
             var self = this;
             this._loadScript(JSPDF_URL, 'jspdf', function () {
+                /* Detect receipt borders */
+                var borders = self._detectReceiptBorders(img);
+
                 /* Cap at 2000px — enough for A4 300dpi, avoids slow pixel loops on 12MP shots */
                 var MAX_PDF  = 2000;
-                var w        = img.naturalWidth, h = img.naturalHeight;
+                var w        = borders.w, h = borders.h;
                 var pdfScale = Math.min(1, MAX_PDF / Math.max(w, h));
                 var canvas   = document.createElement('canvas');
                 canvas.width  = Math.round(w * pdfScale);
                 canvas.height = Math.round(h * pdfScale);
                 var ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                /* Draw cropped region from original image */
+                ctx.drawImage(img,
+                    borders.x, borders.y, borders.w, borders.h,
+                    0, 0, canvas.width, canvas.height);
                 URL.revokeObjectURL(objectUrl);
 
                 /* Greyscale */
