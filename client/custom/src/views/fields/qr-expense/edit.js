@@ -57,15 +57,13 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                   '" target="_blank">' + attachName + '</a></div>'
                 : '<div class="qr-attach" style="display:none;margin-top:6px;font-size:13px;color:#555;"></div>';
 
-            var isFirefox = /firefox/i.test(navigator.userAgent);
-            var captureAttr = isFirefox ? '' : 'capture="environment"';
             var html =
                 '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">' +
                     '<label class="btn btn-default qr-btn-scan" ' +
                     'style="display:flex;align-items:center;gap:6px;padding:7px 14px;cursor:pointer;margin:0;">' +
                         '<span class="fas fa-camera" style="font-size:15px;"></span>' +
                         '<span class="qr-btn-label">Foto da Fatura</span>' +
-                        '<input type="file" accept="image/*" ' + captureAttr + ' class="qr-file-input" ' +
+                        '<input type="file" accept="image/*" capture="environment" class="qr-file-input" ' +
                         'style="display:none;position:absolute;width:0;height:0;">' +
                     '</label>' +
                     '<span class="qr-status" style="font-size:13px;color:#888;"></span>' +
@@ -90,12 +88,9 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 '<div class="qr-preview" style="display:none;margin-top:8px;">' +
                     '<img class="qr-preview-img" style="max-width:120px;max-height:160px;' +
                     'border-radius:6px;border:1px solid #ddd;object-fit:cover;">' +
-                '</div>' +
-                '<div class="qr-logs" style="display:none;margin-top:10px;background:#222;color:#0f0;' +
-                'font-family:monospace;font-size:10px;padding:8px;border-radius:4px;max-height:120px;overflow-y:auto;"></div>';
+                '</div>';
 
             this.$el.find('.qr-expense-root').html(html);
-            this._logs = [];
 
             this.$el.find('.qr-file-input').on('change', function (e) {
                 var file = e.target.files && e.target.files[0];
@@ -153,35 +148,18 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                         return c;
                     }
 
-                    var isFirefox = /firefox/i.test(navigator.userAgent);
-                    var SCAN_TIMEOUT = isFirefox ? 20000 : 12000;
-
-                    function doScan(canvas, idx) {
-                        var timeout = new Promise(function (res) {
-                            setTimeout(function () {
-                                self._log('Region ' + idx + ' timeout');
-                                res(null);
-                            }, SCAN_TIMEOUT);
-                        });
-                        var scan = window.QrScanner.scanImage(canvas, {
+                    function doScan(canvas) {
+                        return window.QrScanner.scanImage(canvas, {
                             returnDetailedScanResult: true,
                             scanRegion: { x: 0, y: 0, width: canvas.width, height: canvas.height }
                         }).then(function (r) {
-                            self._log('Region ' + idx + ': ' + (r ? 'found' : 'empty'));
                             return (r && r.data) ? r.data : String(r);
-                        }).catch(function (err) {
-                            self._log('Region ' + idx + ' error: ' + (err.message || err));
-                            return null;
-                        });
-                        return Promise.race([scan, timeout]);
+                        }).catch(function () { return null; });
                     }
 
-                    var scanPromises = regions.map(function (r, idx) {
-                        return doScan(makeRegion(r[0], r[1], r[2], r[3]), idx);
-                    });
-
-                    Promise.all(scanPromises)
-                    .then(function (raws) {
+                    Promise.all(regions.map(function (r) {
+                        return doScan(makeRegion(r[0], r[1], r[2], r[3]));
+                    })).then(function (raws) {
                         /* Collect unique valid AT QR codes across all regions */
                         var unique = [];
                         raws.forEach(function (raw) {
@@ -191,7 +169,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                             }
                         });
 
-                        self._log('Found ' + unique.length + ' distinct QR codes');
+                        console.log('[QR] distinct AT codes found:', unique.length);
 
                         if (unique.length >= 2) {
                             URL.revokeObjectURL(objectUrl);
@@ -209,17 +187,14 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                         if (parsed) {
                             self._setStatus('QR AT lido — a verificar duplicados...');
                             self._checkDuplicates(parsed, img, objectUrl);
+                        } else if (unique.length === 0 && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
+                            /* iOS fallback: try jsQR if qr-scanner found nothing */
+                            self._setStatus('Tentando jsQR (fallback iOS)...');
+                            self._tryJsQRFallback(img, objectUrl);
                         } else {
                             self._setStatus('QR não é formato AT — a converter para PDF...');
                             self._imgToPdfAndUpload(img, objectUrl, false);
                         }
-                    })
-                    .catch(function (err) {
-                        console.error('[QR] scan error:', err);
-                        URL.revokeObjectURL(objectUrl);
-                        self._setSaveDisabled(false);
-                        self._setBtnState('idle');
-                        self._showError('Erro ao ler QR: ' + (err.message || 'desconhecido'));
                     });
                 };
                 img.onerror = function () {
@@ -474,23 +449,6 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
         /* ── Script loader — suppress AMD so UMD assigns to window ─ */
 
-        _log: function (msg) {
-            var now = new Date();
-            var time = now.getHours().toString().padStart(2, '0') + ':' +
-                      now.getMinutes().toString().padStart(2, '0') + ':' +
-                      now.getSeconds().toString().padStart(2, '0');
-            var line = '[' + time + '] ' + msg;
-            if (!this._logs) { this._logs = []; }
-            this._logs.push(line);
-            if (this._logs.length > 20) { this._logs.shift(); }
-            var $logs = this.$el.find('.qr-logs');
-            if ($logs.length) {
-                $logs.html(this._logs.join('<br>'));
-                $logs.show().scrollTop($logs[0].scrollHeight);
-            }
-            console.log(msg);
-        },
-
         _loadScript: function (url, globalName, cb) {
             if (window[globalName]) { cb(); return; }
             var self = this;
@@ -509,6 +467,41 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 self._setBtnState('idle');
             };
             document.head.appendChild(script);
+        },
+
+        _tryJsQRFallback: function (img, objectUrl) {
+            var self = this;
+            var canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            canvas.getContext('2d').drawImage(img, 0, 0);
+            var imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+
+            try {
+                if (!window.jsQR) {
+                    self._setStatus('jsQR não disponível — a converter para PDF...');
+                    self._imgToPdfAndUpload(img, objectUrl, false);
+                    return;
+                }
+                var result = window.jsQR(imageData.data, imageData.width, imageData.height);
+                if (result && result.data) {
+                    var parsed = self._parseQrAT(result.data);
+                    if (parsed) {
+                        self._setStatus('QR AT lido (jsQR) — a verificar duplicados...');
+                        self._checkDuplicates(parsed, img, objectUrl);
+                    } else {
+                        self._setStatus('QR não é formato AT — a converter para PDF...');
+                        self._imgToPdfAndUpload(img, objectUrl, false);
+                    }
+                } else {
+                    self._setStatus('QR não encontrado — a converter para PDF...');
+                    self._imgToPdfAndUpload(img, objectUrl, false);
+                }
+            } catch (err) {
+                console.error('[QR] jsQR fallback error:', err);
+                self._setStatus('Erro no jsQR — a converter para PDF...');
+                self._imgToPdfAndUpload(img, objectUrl, false);
+            }
         }
     });
 });
