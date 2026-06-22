@@ -90,9 +90,12 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 '<div class="qr-preview" style="display:none;margin-top:8px;">' +
                     '<img class="qr-preview-img" style="max-width:120px;max-height:160px;' +
                     'border-radius:6px;border:1px solid #ddd;object-fit:cover;">' +
-                '</div>';
+                '</div>' +
+                '<div class="qr-logs" style="display:none;margin-top:10px;background:#222;color:#0f0;' +
+                'font-family:monospace;font-size:10px;padding:8px;border-radius:4px;max-height:120px;overflow-y:auto;"></div>';
 
             this.$el.find('.qr-expense-root').html(html);
+            this._logs = [];
 
             this.$el.find('.qr-file-input').on('change', function (e) {
                 var file = e.target.files && e.target.files[0];
@@ -156,7 +159,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                     function doScan(canvas, idx) {
                         var timeout = new Promise(function (res) {
                             setTimeout(function () {
-                                console.warn('[QR] region ' + idx + ' timeout');
+                                self._log('Region ' + idx + ' timeout');
                                 res(null);
                             }, SCAN_TIMEOUT);
                         });
@@ -164,10 +167,10 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                             returnDetailedScanResult: true,
                             scanRegion: { x: 0, y: 0, width: canvas.width, height: canvas.height }
                         }).then(function (r) {
-                            console.log('[QR] region ' + idx + ' result:', r ? 'found' : 'empty');
+                            self._log('Region ' + idx + ': ' + (r ? 'found' : 'empty'));
                             return (r && r.data) ? r.data : String(r);
                         }).catch(function (err) {
-                            console.error('[QR] region ' + idx + ' error:', err);
+                            self._log('Region ' + idx + ' error: ' + (err.message || err));
                             return null;
                         });
                         return Promise.race([scan, timeout]);
@@ -188,7 +191,7 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                             }
                         });
 
-                        console.log('[QR] distinct AT codes found:', unique.length);
+                        self._log('Found ' + unique.length + ' distinct QR codes');
 
                         if (unique.length >= 2) {
                             URL.revokeObjectURL(objectUrl);
@@ -470,6 +473,23 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         _clearError: function ()    { this.$el.find('.qr-error').hide().text(''); },
 
         /* ── Script loader — suppress AMD so UMD assigns to window ─ */
+
+        _log: function (msg) {
+            var now = new Date();
+            var time = now.getHours().toString().padStart(2, '0') + ':' +
+                      now.getMinutes().toString().padStart(2, '0') + ':' +
+                      now.getSeconds().toString().padStart(2, '0');
+            var line = '[' + time + '] ' + msg;
+            if (!this._logs) { this._logs = []; }
+            this._logs.push(line);
+            if (this._logs.length > 20) { this._logs.shift(); }
+            var $logs = this.$el.find('.qr-logs');
+            if ($logs.length) {
+                $logs.html(this._logs.join('<br>'));
+                $logs.show().scrollTop($logs[0].scrollHeight);
+            }
+            console.log(msg);
+        },
 
         _loadScript: function (url, globalName, cb) {
             if (window[globalName]) { cb(); return; }
