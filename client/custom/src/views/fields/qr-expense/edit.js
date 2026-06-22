@@ -271,9 +271,9 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         /* ── Image → A4 PDF → upload ────────────────────────── */
 
         _detectReceiptBorders: function (img) {
-            /* Find receipt bounds: look for mostly-white region surrounded by non-white */
+            /* Find light region (the white receipt paper) */
             var canvas = document.createElement('canvas');
-            var w = Math.min(img.naturalWidth, 800), h = Math.min(img.naturalHeight, 1200);
+            var w = Math.min(img.naturalWidth, 600), h = Math.min(img.naturalHeight, 900);
             canvas.width = w;
             canvas.height = h;
             var ctx = canvas.getContext('2d');
@@ -281,12 +281,11 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             var imgData = ctx.getImageData(0, 0, w, h);
             var data = imgData.data;
 
-            /* Find bounds of pixels that are not too light (not white/light gray) */
+            /* Find bounds of light pixels (white/light receipt excludes dark background) */
             var left = w, right = 0, top = h, bottom = 0;
             for (var i = 0; i < data.length; i += 4) {
                 var gray = (data[i] + data[i+1] + data[i+2]) / 3;
-                /* Threshold: include text/content (gray < 240), exclude bright white/light areas */
-                if (gray < 240) {
+                if (gray > 80) { /* light pixels = receipt area */
                     var idx = i / 4;
                     var x = idx % w, y = Math.floor(idx / w);
                     if (x < left) left = x;
@@ -296,9 +295,9 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 }
             }
 
-            /* Scale back to original size + margin */
+            /* Scale back to original size + minimal margin */
             var scale = Math.max(img.naturalWidth / w, img.naturalHeight / h);
-            var margin = Math.max(10, Math.round(scale * 5)); /* proportional margin */
+            var margin = Math.max(3, Math.round(scale * 1));
             return {
                 x: Math.max(0, left * scale - margin),
                 y: Math.max(0, top * scale - margin),
@@ -310,21 +309,15 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         _imgToPdfAndUpload: function (img, objectUrl, qrSuccess) {
             var self = this;
             this._loadScript(JSPDF_URL, 'jspdf', function () {
-                /* Detect receipt borders */
-                var borders = self._detectReceiptBorders(img);
-
                 /* Cap at 2000px — enough for A4 300dpi, avoids slow pixel loops on 12MP shots */
                 var MAX_PDF  = 2000;
-                var w        = borders.w, h = borders.h;
+                var w        = img.naturalWidth, h = img.naturalHeight;
                 var pdfScale = Math.min(1, MAX_PDF / Math.max(w, h));
                 var canvas   = document.createElement('canvas');
                 canvas.width  = Math.round(w * pdfScale);
                 canvas.height = Math.round(h * pdfScale);
                 var ctx = canvas.getContext('2d');
-                /* Draw cropped region from original image */
-                ctx.drawImage(img,
-                    borders.x, borders.y, borders.w, borders.h,
-                    0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 URL.revokeObjectURL(objectUrl);
 
                 /* Greyscale */
