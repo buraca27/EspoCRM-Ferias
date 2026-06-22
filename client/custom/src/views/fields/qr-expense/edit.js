@@ -150,18 +150,35 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                         return c;
                     }
 
-                    function doScan(canvas) {
-                        return window.QrScanner.scanImage(canvas, {
+                    var isFirefox = /firefox/i.test(navigator.userAgent);
+                    var SCAN_TIMEOUT = isFirefox ? 20000 : 12000;
+
+                    function doScan(canvas, idx) {
+                        var timeout = new Promise(function (res) {
+                            setTimeout(function () {
+                                console.warn('[QR] region ' + idx + ' timeout');
+                                res(null);
+                            }, SCAN_TIMEOUT);
+                        });
+                        var scan = window.QrScanner.scanImage(canvas, {
                             returnDetailedScanResult: true,
                             scanRegion: { x: 0, y: 0, width: canvas.width, height: canvas.height }
                         }).then(function (r) {
+                            console.log('[QR] region ' + idx + ' result:', r ? 'found' : 'empty');
                             return (r && r.data) ? r.data : String(r);
-                        }).catch(function () { return null; });
+                        }).catch(function (err) {
+                            console.error('[QR] region ' + idx + ' error:', err);
+                            return null;
+                        });
+                        return Promise.race([scan, timeout]);
                     }
 
-                    Promise.all(regions.map(function (r) {
-                        return doScan(makeRegion(r[0], r[1], r[2], r[3]));
-                    })).then(function (raws) {
+                    var scanPromises = regions.map(function (r, idx) {
+                        return doScan(makeRegion(r[0], r[1], r[2], r[3]), idx);
+                    });
+
+                    Promise.all(scanPromises)
+                    .then(function (raws) {
                         /* Collect unique valid AT QR codes across all regions */
                         var unique = [];
                         raws.forEach(function (raw) {
@@ -193,6 +210,13 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                             self._setStatus('QR não é formato AT — a converter para PDF...');
                             self._imgToPdfAndUpload(img, objectUrl, false);
                         }
+                    })
+                    .catch(function (err) {
+                        console.error('[QR] scan error:', err);
+                        URL.revokeObjectURL(objectUrl);
+                        self._setSaveDisabled(false);
+                        self._setBtnState('idle');
+                        self._showError('Erro ao ler QR: ' + (err.message || 'desconhecido'));
                     });
                 };
                 img.onerror = function () {
