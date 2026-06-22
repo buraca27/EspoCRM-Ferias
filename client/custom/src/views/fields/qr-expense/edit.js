@@ -271,9 +271,9 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         /* ── Image → A4 PDF → upload ────────────────────────── */
 
         _detectReceiptBorders: function (img) {
-            /* Quick edge detection: find darkest pixels (receipt edges) */
+            /* Find receipt bounds: look for mostly-white region surrounded by non-white */
             var canvas = document.createElement('canvas');
-            var w = Math.min(img.naturalWidth, 1200), h = Math.min(img.naturalHeight, 1600);
+            var w = Math.min(img.naturalWidth, 800), h = Math.min(img.naturalHeight, 1200);
             canvas.width = w;
             canvas.height = h;
             var ctx = canvas.getContext('2d');
@@ -281,10 +281,12 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             var imgData = ctx.getImageData(0, 0, w, h);
             var data = imgData.data;
 
+            /* Find bounds of pixels that are not too light (not white/light gray) */
             var left = w, right = 0, top = h, bottom = 0;
             for (var i = 0; i < data.length; i += 4) {
                 var gray = (data[i] + data[i+1] + data[i+2]) / 3;
-                if (gray < 200) { /* dark pixel */
+                /* Threshold: include text/content (gray < 240), exclude bright white/light areas */
+                if (gray < 240) {
                     var idx = i / 4;
                     var x = idx % w, y = Math.floor(idx / w);
                     if (x < left) left = x;
@@ -294,9 +296,9 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 }
             }
 
-            /* Scale back to original size + small margin */
+            /* Scale back to original size + margin */
             var scale = Math.max(img.naturalWidth / w, img.naturalHeight / h);
-            var margin = 20;
+            var margin = Math.max(10, Math.round(scale * 5)); /* proportional margin */
             return {
                 x: Math.max(0, left * scale - margin),
                 y: Math.max(0, top * scale - margin),
