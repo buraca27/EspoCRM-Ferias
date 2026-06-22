@@ -59,11 +59,16 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
 
             var html =
                 '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">' +
-                    '<label class="btn btn-default qr-btn-scan" ' +
+                    '<button type="button" class="btn btn-default qr-btn-camera" ' +
                     'style="display:flex;align-items:center;gap:6px;padding:7px 14px;cursor:pointer;margin:0;">' +
                         '<span class="fas fa-camera" style="font-size:15px;"></span>' +
-                        '<span class="qr-btn-label">Foto da Fatura</span>' +
-                        '<input type="file" accept="image/*" capture="environment" class="qr-file-input" ' +
+                        '<span class="qr-btn-label-cam">Câmara</span>' +
+                    '</button>' +
+                    '<label class="btn btn-default qr-btn-gallery" ' +
+                    'style="display:flex;align-items:center;gap:6px;padding:7px 14px;cursor:pointer;margin:0;">' +
+                        '<span class="fas fa-images" style="font-size:15px;"></span>' +
+                        '<span class="qr-btn-label-gal">Galeria</span>' +
+                        '<input type="file" accept="image/*" class="qr-file-input" ' +
                         'style="display:none;position:absolute;width:0;height:0;">' +
                     '</label>' +
                     '<span class="qr-status" style="font-size:13px;color:#888;"></span>' +
@@ -97,6 +102,54 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 e.target.value = '';
                 if (file) { self._processImage(file); }
             });
+
+            this.$el.find('.qr-btn-camera').on('click', function () {
+                self._startCamera();
+            });
+        },
+
+        _startCamera: function () {
+            var self = this;
+            this._clearError();
+            this._hideDupWarning();
+            this._setStatus('A abrir câmara...');
+            this._setBtnState('loading');
+            this._setSaveDisabled(true);
+
+            var constraints = { video: { facingMode: 'environment' }, audio: false };
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(function (stream) {
+                    self._captureFromStream(stream);
+                })
+                .catch(function (err) {
+                    console.error('[QR] camera error:', err);
+                    self._setSaveDisabled(false);
+                    self._setBtnState('idle');
+                    self._showError('Câmara não disponível: ' + err.name);
+                });
+        },
+
+        _captureFromStream: function (stream) {
+            var self = this;
+            var video = document.createElement('video');
+            video.srcObject = stream;
+            video.play();
+
+            video.onloadedmetadata = function () {
+                /* Capture frame after video loads */
+                setTimeout(function () {
+                    var canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    canvas.getContext('2d').drawImage(video, 0, 0);
+                    stream.getTracks().forEach(function (t) { t.stop(); });
+
+                    /* Convert canvas to blob and process */
+                    canvas.toBlob(function (blob) {
+                        self._processImage(blob);
+                    }, 'image/jpeg', 0.88);
+                }, 500);
+            };
         },
 
         /* ── Main processing pipeline ──────────────────────── */
@@ -431,24 +484,27 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         /* ── UI helpers ────────────────────────────────────── */
 
         _setBtnState: function (state) {
-            var $btn   = this.$el.find('.qr-btn-scan');
-            var $label = this.$el.find('.qr-btn-label');
-            var $icon  = $btn.find('.fas');
+            var $camBtn = this.$el.find('.qr-btn-camera');
+            var $galBtn = this.$el.find('.qr-btn-gallery');
+            var $camIcon = $camBtn.find('.fas');
+            var $camLabel = $camBtn.find('.qr-btn-label-cam');
+
             if (state === 'idle') {
-                $icon.attr('class', 'fas fa-camera').css('font-size', '15px');
-                $label.text('Foto da Fatura');
-                $btn.removeClass('btn-success').addClass('btn-default');
+                $camIcon.attr('class', 'fas fa-camera').css('font-size', '15px');
+                $camLabel.text('Câmara');
+                $camBtn.removeClass('btn-success').addClass('btn-default').prop('disabled', false);
+                $galBtn.removeClass('btn-success').addClass('btn-default').prop('disabled', false);
             } else if (state === 'loading') {
-                $icon.attr('class', 'fas fa-spinner fa-spin');
-                $label.text('A processar...');
-                $btn.removeClass('btn-success').addClass('btn-default');
+                $camIcon.attr('class', 'fas fa-spinner fa-spin');
+                $camLabel.text('A processar...');
+                $camBtn.removeClass('btn-success').addClass('btn-default').prop('disabled', true);
+                $galBtn.prop('disabled', true);
             } else if (state === 'done') {
-                $icon.attr('class', 'fas fa-check');
-                $label.text('QR lido');
-                $btn.removeClass('btn-default').addClass('btn-success');
+                $camIcon.attr('class', 'fas fa-check');
+                $camLabel.text('QR lido');
+                $camBtn.removeClass('btn-default').addClass('btn-success').prop('disabled', true);
+                $galBtn.prop('disabled', true);
                 this.$el.find('.qr-file-input').prop('disabled', true);
-                $btn.css('cursor', 'default')
-                    .off('click').on('click', function (e) { e.preventDefault(); });
             }
         },
 
