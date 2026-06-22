@@ -62,15 +62,8 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                     '<button type="button" class="btn btn-default qr-btn-camera" ' +
                     'style="display:flex;align-items:center;gap:6px;padding:7px 14px;cursor:pointer;margin:0;">' +
                         '<span class="fas fa-camera" style="font-size:15px;"></span>' +
-                        '<span class="qr-btn-label-cam">Câmara</span>' +
+                        '<span class="qr-btn-label">Foto da Fatura</span>' +
                     '</button>' +
-                    '<label class="btn btn-default qr-btn-gallery" ' +
-                    'style="display:flex;align-items:center;gap:6px;padding:7px 14px;cursor:pointer;margin:0;">' +
-                        '<span class="fas fa-images" style="font-size:15px;"></span>' +
-                        '<span class="qr-btn-label-gal">Galeria</span>' +
-                        '<input type="file" accept="image/*" class="qr-file-input" ' +
-                        'style="display:none;position:absolute;width:0;height:0;">' +
-                    '</label>' +
                     '<span class="qr-status" style="font-size:13px;color:#888;"></span>' +
                 '</div>' +
 
@@ -96,12 +89,6 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
                 '</div>';
 
             this.$el.find('.qr-expense-root').html(html);
-
-            this.$el.find('.qr-file-input').on('change', function (e) {
-                var file = e.target.files && e.target.files[0];
-                e.target.value = '';
-                if (file) { self._processImage(file); }
-            });
 
             this.$el.find('.qr-btn-camera').on('click', function () {
                 self._startCamera();
@@ -133,23 +120,64 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
             var self = this;
             var video = document.createElement('video');
             video.srcObject = stream;
-            video.play();
+            video.setAttribute('playsinline', 'true'); /* iOS */
+            video.setAttribute('autoplay', 'true');
+            video.setAttribute('muted', 'true');
+
+            var timeout = setTimeout(function () {
+                stream.getTracks().forEach(function (t) { t.stop(); });
+                self._setSaveDisabled(false);
+                self._setBtnState('idle');
+                self._showError('Câmara não respondeu no tempo esperado.');
+            }, 5000);
 
             video.onloadedmetadata = function () {
-                /* Capture frame after video loads */
+                clearTimeout(timeout);
+                self._setStatus('Capturando...');
                 setTimeout(function () {
-                    var canvas = document.createElement('canvas');
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    canvas.getContext('2d').drawImage(video, 0, 0);
-                    stream.getTracks().forEach(function (t) { t.stop(); });
+                    try {
+                        var canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        if (canvas.width === 0 || canvas.height === 0) {
+                            throw new Error('Video resolution is zero');
+                        }
+                        canvas.getContext('2d').drawImage(video, 0, 0);
+                        stream.getTracks().forEach(function (t) { t.stop(); });
 
-                    /* Convert canvas to blob and process */
-                    canvas.toBlob(function (blob) {
-                        self._processImage(blob);
-                    }, 'image/jpeg', 0.88);
+                        canvas.toBlob(function (blob) {
+                            if (blob) {
+                                self._processImage(blob);
+                            } else {
+                                self._setSaveDisabled(false);
+                                self._setBtnState('idle');
+                                self._showError('Falha ao capturar frame.');
+                            }
+                        }, 'image/jpeg', 0.88);
+                    } catch (err) {
+                        stream.getTracks().forEach(function (t) { t.stop(); });
+                        self._setSaveDisabled(false);
+                        self._setBtnState('idle');
+                        self._showError('Erro ao capturar: ' + err.message);
+                    }
                 }, 500);
             };
+
+            video.onerror = function () {
+                clearTimeout(timeout);
+                stream.getTracks().forEach(function (t) { t.stop(); });
+                self._setSaveDisabled(false);
+                self._setBtnState('idle');
+                self._showError('Erro ao carregar stream da câmara.');
+            };
+
+            video.play().catch(function (err) {
+                clearTimeout(timeout);
+                stream.getTracks().forEach(function (t) { t.stop(); });
+                self._setSaveDisabled(false);
+                self._setBtnState('idle');
+                self._showError('Erro ao iniciar câmara: ' + err.name);
+            });
         },
 
         /* ── Main processing pipeline ──────────────────────── */
@@ -484,27 +512,22 @@ define('custom:views/fields/qr-expense/edit', ['views/fields/base'], function (D
         /* ── UI helpers ────────────────────────────────────── */
 
         _setBtnState: function (state) {
-            var $camBtn = this.$el.find('.qr-btn-camera');
-            var $galBtn = this.$el.find('.qr-btn-gallery');
-            var $camIcon = $camBtn.find('.fas');
-            var $camLabel = $camBtn.find('.qr-btn-label-cam');
+            var $btn = this.$el.find('.qr-btn-camera');
+            var $icon = $btn.find('.fas');
+            var $label = $btn.find('.qr-btn-label');
 
             if (state === 'idle') {
-                $camIcon.attr('class', 'fas fa-camera').css('font-size', '15px');
-                $camLabel.text('Câmara');
-                $camBtn.removeClass('btn-success').addClass('btn-default').prop('disabled', false);
-                $galBtn.removeClass('btn-success').addClass('btn-default').prop('disabled', false);
+                $icon.attr('class', 'fas fa-camera').css('font-size', '15px');
+                $label.text('Foto da Fatura');
+                $btn.removeClass('btn-success').addClass('btn-default').prop('disabled', false);
             } else if (state === 'loading') {
-                $camIcon.attr('class', 'fas fa-spinner fa-spin');
-                $camLabel.text('A processar...');
-                $camBtn.removeClass('btn-success').addClass('btn-default').prop('disabled', true);
-                $galBtn.prop('disabled', true);
+                $icon.attr('class', 'fas fa-spinner fa-spin');
+                $label.text('A processar...');
+                $btn.removeClass('btn-success').addClass('btn-default').prop('disabled', true);
             } else if (state === 'done') {
-                $camIcon.attr('class', 'fas fa-check');
-                $camLabel.text('QR lido');
-                $camBtn.removeClass('btn-default').addClass('btn-success').prop('disabled', true);
-                $galBtn.prop('disabled', true);
-                this.$el.find('.qr-file-input').prop('disabled', true);
+                $icon.attr('class', 'fas fa-check');
+                $label.text('QR lido');
+                $btn.removeClass('btn-default').addClass('btn-success').prop('disabled', true);
             }
         },
 
